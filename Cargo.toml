@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/git-graph-core", "crates/git-graph-server"]
+resolver = "2"
+
+[workspace.dependencies]
+gix = "=0.81.0"
+serde = "=1.0.228"
+serde_json = "=1.0.149"
+thiserror = "=2.0.18"
+anyhow = "=1.0.102"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "z"
