@@ -87,21 +87,33 @@ pub fn get_commit_detail(
     let files = changes
         .into_iter()
         .filter_map(|change| match change {
-            ChangeDetached::Addition { location, .. } => Some(FileDiff {
+            ChangeDetached::Addition {
+                location,
+                entry_mode,
+                ..
+            } if entry_mode.is_no_tree() => Some(FileDiff {
                 path: location.to_string(),
                 old_path: None,
                 status: "added".into(),
                 additions: 0,
                 deletions: 0,
             }),
-            ChangeDetached::Deletion { location, .. } => Some(FileDiff {
+            ChangeDetached::Deletion {
+                location,
+                entry_mode,
+                ..
+            } if entry_mode.is_no_tree() => Some(FileDiff {
                 path: location.to_string(),
                 old_path: None,
                 status: "deleted".into(),
                 additions: 0,
                 deletions: 0,
             }),
-            ChangeDetached::Modification { location, .. } => Some(FileDiff {
+            ChangeDetached::Modification {
+                location,
+                entry_mode,
+                ..
+            } if entry_mode.is_no_tree() => Some(FileDiff {
                 path: location.to_string(),
                 old_path: None,
                 status: "modified".into(),
@@ -119,6 +131,7 @@ pub fn get_commit_detail(
                 additions: 0,
                 deletions: 0,
             }),
+            _ => None,
         })
         .collect();
 

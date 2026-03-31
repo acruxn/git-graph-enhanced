@@ -7,7 +7,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('gitGraphEnhanced.show', async () => {
             try {
                 const backend = await Backend.create(context.extensionPath);
-                GraphPanel.createOrShow(context.extensionUri, backend);
+                GraphPanel.createOrShow(context.extensionUri, backend, context);
             } catch (err) {
                 vscode.window.showErrorMessage(`Git Graph Enhanced: ${err}`);
             }

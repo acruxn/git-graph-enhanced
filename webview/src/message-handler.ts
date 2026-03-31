@@ -1,5 +1,6 @@
 import { GraphRenderer } from './graph-renderer';
 import { CommitPanel } from './commit-panel';
+import { SearchBar } from './search';
 import type { CommitDetailData } from './commit-panel';
 
 interface VsCodeApi {
@@ -11,16 +12,23 @@ interface ErrorPayload {
     code?: number;
 }
 
+interface SearchResultsPayload {
+    results: unknown[];
+    query: string;
+}
+
 export class MessageHandler {
     private readonly vscode: VsCodeApi;
     private readonly renderer: GraphRenderer;
     private readonly commitPanel: CommitPanel;
+    private readonly searchBar: SearchBar;
     private errorBanner: HTMLElement | null = null;
 
-    constructor(vscode: VsCodeApi, renderer: GraphRenderer, commitPanel: CommitPanel) {
+    constructor(vscode: VsCodeApi, renderer: GraphRenderer, commitPanel: CommitPanel, searchBar: SearchBar) {
         this.vscode = vscode;
         this.renderer = renderer;
         this.commitPanel = commitPanel;
+        this.searchBar = searchBar;
     }
 
     onMessage(msg: { type: string; payload?: unknown }): void {
@@ -31,6 +39,14 @@ export class MessageHandler {
             case 'updateCommitDetail':
                 this.commitPanel.show(msg.payload as CommitDetailData);
                 break;
+            case 'searchResults':
+                this.searchBar.showResultsCount((msg.payload as SearchResultsPayload).results.length);
+                break;
+            case 'restoreScroll': {
+                const container = document.getElementById('graph-container');
+                if (container) { container.scrollTop = (msg.payload as { scrollTop: number }).scrollTop; }
+                break;
+            }
             case 'error':
                 this.showError(msg.payload as ErrorPayload);
                 break;
