@@ -113,14 +113,23 @@ export class GraphPanel implements vscode.Disposable {
             return;
         }
 
-        const [commitsResult, branchesResult] = await Promise.all([
+        const [commitsResult, branchesResult, tagsResult] = await Promise.all([
             this.backend.request('getCommits', { repoPath }),
             this.backend.request('getBranches', { repoPath }),
+            this.backend.request('getTags', { repoPath }),
         ]);
 
+        const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
+
+        const graphResult = await this.backend.request('getGraph', {
+            commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
+        });
+
         this.postMessage('updateGraph', {
-            ...(commitsResult as object),
+            ...commits,
+            ...(graphResult as object),
             ...(branchesResult as object),
+            ...(tagsResult as object),
         });
     }
 
@@ -128,7 +137,11 @@ export class GraphPanel implements vscode.Disposable {
         const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!repoPath) { return; }
         const result = await this.backend.request('getCommits', { repoPath, ...(payload as object) });
-        this.postMessage('appendCommits', result);
+        const commits = result as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
+        const graphResult = await this.backend.request('getGraph', {
+            commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
+        });
+        this.postMessage('appendCommits', { ...commits, ...(graphResult as object) });
     }
 
     private async handleRequestCommitDetail(payload: unknown): Promise<void> {

@@ -1,4 +1,6 @@
 import { GraphRenderer } from './graph-renderer';
+import { CommitPanel } from './commit-panel';
+import type { CommitDetailData } from './commit-panel';
 
 interface VsCodeApi {
     postMessage(msg: { type: string; payload?: unknown }): void;
@@ -12,17 +14,22 @@ interface ErrorPayload {
 export class MessageHandler {
     private readonly vscode: VsCodeApi;
     private readonly renderer: GraphRenderer;
+    private readonly commitPanel: CommitPanel;
     private errorBanner: HTMLElement | null = null;
 
-    constructor(vscode: VsCodeApi, renderer: GraphRenderer) {
+    constructor(vscode: VsCodeApi, renderer: GraphRenderer, commitPanel: CommitPanel) {
         this.vscode = vscode;
         this.renderer = renderer;
+        this.commitPanel = commitPanel;
     }
 
     onMessage(msg: { type: string; payload?: unknown }): void {
         switch (msg.type) {
             case 'updateGraph':
                 this.renderer.render(msg.payload as Parameters<GraphRenderer['render']>[0]);
+                break;
+            case 'updateCommitDetail':
+                this.commitPanel.show(msg.payload as CommitDetailData);
                 break;
             case 'error':
                 this.showError(msg.payload as ErrorPayload);
