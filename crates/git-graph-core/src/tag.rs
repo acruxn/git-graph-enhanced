@@ -19,13 +19,13 @@ pub fn list_tags(repo_path: &Path) -> CoreResult<Vec<Tag>> {
     let repo = open_repo(repo_path)?;
     let mut tags = Vec::new();
 
-    let refs = repo.references().map_err(|e| {
-        crate::error::CoreError::InvalidRevision { rev: e.to_string() }
-    })?;
+    let refs = repo
+        .references()
+        .map_err(|e| crate::error::CoreError::InvalidRevision { rev: e.to_string() })?;
 
-    let tag_refs = refs.tags().map_err(|e| {
-        crate::error::CoreError::InvalidRevision { rev: e.to_string() }
-    })?;
+    let tag_refs = refs
+        .tags()
+        .map_err(|e| crate::error::CoreError::InvalidRevision { rev: e.to_string() })?;
 
     for reference in tag_refs.flatten() {
         let name = reference
@@ -46,7 +46,12 @@ pub fn list_tags(repo_path: &Path) -> CoreResult<Vec<Tag>> {
                 let (commit_id, message) = match tag_ref {
                     Ok(t) => (
                         t.target().to_string(),
-                        Some(std::str::from_utf8(t.message).unwrap_or("").trim().to_owned()),
+                        Some(
+                            std::str::from_utf8(t.message)
+                                .unwrap_or("")
+                                .trim()
+                                .to_owned(),
+                        ),
                     ),
                     Err(_) => (target_id.to_string(), None),
                 };

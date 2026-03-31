@@ -60,10 +60,7 @@ pub fn list_commits(
         let committer_sig = decoded
             .committer()
             .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
-        let timestamp = committer_sig
-            .time()
-            .map(|t| t.seconds)
-            .unwrap_or(0);
+        let timestamp = committer_sig.time().map(|t| t.seconds).unwrap_or(0);
 
         let hex = info.id.to_string();
         let short = hex[..7.min(hex.len())].to_string();

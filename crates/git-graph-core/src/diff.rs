@@ -18,13 +18,12 @@ pub struct FileDiff {
     pub deletions: usize,
 }
 
-pub fn get_commit_detail(
-    repo_path: &Path,
-    commit_id: &str,
-) -> CoreResult<(Commit, Vec<FileDiff>)> {
+pub fn get_commit_detail(repo_path: &Path, commit_id: &str) -> CoreResult<(Commit, Vec<FileDiff>)> {
     let repo = open_repo(repo_path)?;
-    let oid = gix::ObjectId::from_hex(commit_id.as_bytes())
-        .map_err(|_| CoreError::InvalidRevision { rev: commit_id.to_owned() })?;
+    let oid =
+        gix::ObjectId::from_hex(commit_id.as_bytes()).map_err(|_| CoreError::InvalidRevision {
+            rev: commit_id.to_owned(),
+        })?;
 
     let object = repo
         .find_object(oid)

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import type { Backend } from './backend';
 import type { WebviewMessage } from './types';
 import { buildDiffUri } from './diff-provider';
+import { getConfig, CONFIG_MAX_COMMITS } from './config';
 import { outputChannel } from './extension';
 
 export class GraphPanel implements vscode.Disposable {
@@ -11,6 +12,7 @@ export class GraphPanel implements vscode.Disposable {
     private readonly backend: Backend;
     private readonly context: vscode.ExtensionContext;
     private readonly disposables: vscode.Disposable[] = [];
+    private repoPath: string | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -47,6 +49,36 @@ export class GraphPanel implements vscode.Disposable {
         );
 
         GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, backend, context);
+    }
+
+    private async discoverRepoPath(): Promise<string | undefined> {
+        if (this.repoPath) { return this.repoPath; }
+
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) { return undefined; }
+
+        const repoPaths: string[] = [];
+        for (const folder of folders) {
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, '.git'));
+                repoPaths.push(folder.uri.fsPath);
+            } catch {
+                // No .git in this folder
+            }
+        }
+
+        if (repoPaths.length === 0) { return undefined; }
+        if (repoPaths.length === 1) {
+            this.repoPath = repoPaths[0];
+            return this.repoPath;
+        }
+
+        const picked = await vscode.window.showQuickPick(
+            repoPaths.map(p => ({ label: p.split('/').pop() || p, description: p, path: p })),
+            { placeHolder: 'Select a repository' }
+        );
+        this.repoPath = picked?.path;
+        return this.repoPath;
     }
 
     private setupFileWatcher(): void {
@@ -138,14 +170,16 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     private async handleReady(): Promise<void> {
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) {
-            this.postMessage('error', { message: 'No workspace folder open' });
+            this.postMessage('error', { message: 'No git repository found in workspace' });
             return;
         }
 
+        const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
+
         const [commitsResult, branchesResult, tagsResult] = await Promise.all([
-            this.backend.request('getCommits', { repoPath }),
+            this.backend.request('getCommits', { repoPath, maxCount }),
             this.backend.request('getBranches', { repoPath }),
             this.backend.request('getTags', { repoPath }),
         ]);
@@ -170,7 +204,7 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     private async handleRequestCommits(payload: unknown): Promise<void> {
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
         const result = await this.backend.request('getCommits', { repoPath, ...(payload as object) });
         const commits = result as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
@@ -181,21 +215,21 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     private async handleRequestCommitDetail(payload: unknown): Promise<void> {
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
         const result = await this.backend.request('getCommitDetail', { repoPath, ...(payload as object) });
         this.postMessage('updateCommitDetail', result);
     }
 
     private async handleRequestDiff(payload: unknown): Promise<void> {
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
         const result = await this.backend.request('getDiff', { repoPath, ...(payload as object) });
         this.postMessage('updateDiff', result);
     }
 
     private async handleSearch(payload: unknown): Promise<void> {
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
         const result = await this.backend.request('search', { repoPath, ...(payload as object) });
         this.postMessage('searchResults', result);
@@ -203,7 +237,7 @@ export class GraphPanel implements vscode.Disposable {
 
     private async handleOpenDiff(payload: unknown): Promise<void> {
         const { filePath, commitId } = payload as { filePath: string; commitId: string };
-        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
 
         const commitResult = await this.backend.request('getCommitDetail', {

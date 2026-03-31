@@ -6,8 +6,11 @@ use serde_json::json;
 
 use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
 
+const PROTOCOL_VERSION: u32 = 1;
+
 pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
     match req.method.as_str() {
+        "initialize" => handle_initialize(req),
         "getCommits" => handle_get_commits(req),
         "getBranches" => handle_get_branches(req),
         "getGraph" => handle_get_graph(req),
@@ -20,6 +23,32 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
     }
 }
 
+fn handle_initialize(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let client_version = req
+        .params
+        .get("protocolVersion")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+
+    if client_version != PROTOCOL_VERSION {
+        return JsonRpcResponse::error(
+            req.id,
+            -32600,
+            format!(
+                "protocol version mismatch: server={PROTOCOL_VERSION}, client={client_version}"
+            ),
+        );
+    }
+
+    JsonRpcResponse::success(
+        req.id,
+        json!({
+            "protocolVersion": PROTOCOL_VERSION,
+            "serverVersion": env!("CARGO_PKG_VERSION"),
+        }),
+    )
+}
+
 fn handle_get_commits(req: &JsonRpcRequest) -> JsonRpcResponse {
     let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
         Some(p) => p,
@@ -30,11 +59,7 @@ fn handle_get_commits(req: &JsonRpcRequest) -> JsonRpcResponse {
         .get("maxCount")
         .and_then(|v| v.as_u64())
         .unwrap_or(500) as usize;
-    let skip = req
-        .params
-        .get("skip")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let skip = req.params.get("skip").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
     match git_graph_core::commit::list_commits(Path::new(repo_path), skip, max_count) {
         Ok((commits, has_more)) => {
@@ -64,19 +89,16 @@ struct GraphCommitInput {
 }
 
 fn handle_get_graph(req: &JsonRpcRequest) -> JsonRpcResponse {
-    let commits: Vec<GraphCommitInput> = match serde_json::from_value(
-        req.params.get("commits").cloned().unwrap_or_default(),
-    ) {
-        Ok(c) => c,
-        Err(_) => {
-            return JsonRpcResponse::error(req.id, -32602, "missing or invalid param: commits")
-        }
-    };
+    let commits: Vec<GraphCommitInput> =
+        match serde_json::from_value(req.params.get("commits").cloned().unwrap_or_default()) {
+            Ok(c) => c,
+            Err(_) => {
+                return JsonRpcResponse::error(req.id, -32602, "missing or invalid param: commits")
+            }
+        };
 
-    let input: Vec<(String, Vec<String>)> = commits
-        .into_iter()
-        .map(|c| (c.id, c.parent_ids))
-        .collect();
+    let input: Vec<(String, Vec<String>)> =
+        commits.into_iter().map(|c| (c.id, c.parent_ids)).collect();
 
     let (nodes, edges) = git_graph_core::graph::compute_layout(&input);
     JsonRpcResponse::success(req.id, json!({ "nodes": nodes, "edges": edges }))
@@ -132,8 +154,12 @@ fn handle_search(req: &JsonRpcRequest) -> JsonRpcResponse {
         .and_then(|v| v.as_u64())
         .unwrap_or(100) as usize;
 
-    match git_graph_core::search::search_commits(Path::new(repo_path), query, search_type, max_count)
-    {
+    match git_graph_core::search::search_commits(
+        Path::new(repo_path),
+        query,
+        search_type,
+        max_count,
+    ) {
         Ok(results) => JsonRpcResponse::success(req.id, json!({ "results": results })),
         Err(e) => core_error_to_response(req.id, &e),
     }

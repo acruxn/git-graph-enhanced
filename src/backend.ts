@@ -101,6 +101,19 @@ export class Backend {
             }
         });
 
+        // Protocol handshake — verify version compatibility
+        try {
+            const initResult = await backend.request('initialize', { protocolVersion: 1 }) as {
+                protocolVersion: number;
+                serverVersion: string;
+            };
+            outputChannel.appendLine(`[backend] server v${initResult.serverVersion}, protocol v${initResult.protocolVersion}`);
+        } catch (err) {
+            backend.process.kill();
+            backend.process = null;
+            throw new Error('Backend version mismatch. Please reinstall the extension.');
+        }
+
         Backend._instance = backend;
         return backend;
     }
