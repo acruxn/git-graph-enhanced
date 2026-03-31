@@ -1,0 +1,47 @@
+{
+  "name": "git-graph-enhanced",
+  "displayName": "Git Graph Enhanced",
+  "description": "High-performance git history visualization powered by Rust",
+  "version": "0.1.0",
+  "publisher": "git-graph-enhanced",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Visualization"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.git"
+  ],
+  "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitGraphEnhanced.show",
+        "title": "Show Git Graph",
+        "category": "Git Graph Enhanced"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

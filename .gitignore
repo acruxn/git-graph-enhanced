@@ -4,6 +4,9 @@ node_modules/
 # Rust build
 target/
 
+# Build output
+dist/
+
 # VS Code extension package
 *.vsix
 

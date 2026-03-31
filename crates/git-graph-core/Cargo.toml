@@ -1,0 +1,9 @@
+[package]
+name = "git-graph-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gix = { workspace = true, features = ["max-performance"] }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
