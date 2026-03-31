@@ -2,25 +2,34 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import type { Backend } from './backend';
 import type { WebviewMessage } from './types';
+import { buildDiffUri } from './diff-provider';
 import { outputChannel } from './extension';
 
 export class GraphPanel implements vscode.Disposable {
     private static currentPanel: GraphPanel | undefined;
     private readonly panel: vscode.WebviewPanel;
     private readonly backend: Backend;
+    private readonly context: vscode.ExtensionContext;
     private readonly disposables: vscode.Disposable[] = [];
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, backend: Backend) {
+    private constructor(
+        panel: vscode.WebviewPanel,
+        extensionUri: vscode.Uri,
+        backend: Backend,
+        context: vscode.ExtensionContext,
+    ) {
         this.panel = panel;
         this.backend = backend;
+        this.context = context;
 
         this.panel.webview.html = this.getWebviewContent(this.panel.webview, extensionUri);
         this.setupMessageHandler();
+        this.setupFileWatcher();
 
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     }
 
-    static createOrShow(extensionUri: vscode.Uri, backend: Backend): void {
+    static createOrShow(extensionUri: vscode.Uri, backend: Backend, context: vscode.ExtensionContext): void {
         if (GraphPanel.currentPanel) {
             GraphPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
             return;
@@ -37,7 +46,20 @@ export class GraphPanel implements vscode.Disposable {
             }
         );
 
-        GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, backend);
+        GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, backend, context);
+    }
+
+    private setupFileWatcher(): void {
+        const watcher = vscode.workspace.createFileSystemWatcher('**/.git/{HEAD,refs/**,index}');
+        let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+        const refresh = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => this.handleReady(), 500);
+        };
+        watcher.onDidChange(refresh, null, this.disposables);
+        watcher.onDidCreate(refresh, null, this.disposables);
+        watcher.onDidDelete(refresh, null, this.disposables);
+        this.disposables.push(watcher);
     }
 
     private getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -95,6 +117,15 @@ export class GraphPanel implements vscode.Disposable {
                         case 'search':
                             await this.handleSearch(msg.payload);
                             break;
+                        case 'copyToClipboard':
+                            await vscode.env.clipboard.writeText((msg.payload as { text: string }).text);
+                            break;
+                        case 'openDiff':
+                            await this.handleOpenDiff(msg.payload);
+                            break;
+                        case 'saveScrollPosition':
+                            this.context.workspaceState.update('graphScrollTop', (msg.payload as { scrollTop: number }).scrollTop);
+                            break;
                     }
                 } catch (err) {
                     outputChannel.appendLine(`[webview] error handling "${msg.type}": ${err}`);
@@ -131,6 +162,11 @@ export class GraphPanel implements vscode.Disposable {
             ...(branchesResult as object),
             ...(tagsResult as object),
         });
+
+        const savedScroll = this.context.workspaceState.get<number>('graphScrollTop', 0);
+        if (savedScroll) {
+            this.postMessage('restoreScroll', { scrollTop: savedScroll });
+        }
     }
 
     private async handleRequestCommits(payload: unknown): Promise<void> {
@@ -163,6 +199,23 @@ export class GraphPanel implements vscode.Disposable {
         if (!repoPath) { return; }
         const result = await this.backend.request('search', { repoPath, ...(payload as object) });
         this.postMessage('searchResults', result);
+    }
+
+    private async handleOpenDiff(payload: unknown): Promise<void> {
+        const { filePath, commitId } = payload as { filePath: string; commitId: string };
+        const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!repoPath) { return; }
+
+        const commitResult = await this.backend.request('getCommitDetail', {
+            repoPath, commitId,
+        }) as { commit: { parentIds: string[] } };
+
+        const parentId = commitResult.commit.parentIds[0];
+        if (!parentId) { return; }
+
+        const left = buildDiffUri(filePath, parentId, repoPath);
+        const right = buildDiffUri(filePath, commitId, repoPath);
+        await vscode.commands.executeCommand('vscode.diff', left, right, `${filePath} (${commitId.slice(0, 7)})`);
     }
 
     private postMessage(type: string, payload?: unknown): void {

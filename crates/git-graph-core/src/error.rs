@@ -8,7 +8,7 @@ pub enum CoreError {
     #[error("invalid revision: {rev}")]
     InvalidRevision { rev: String },
     #[error(transparent)]
-    Git(#[from] gix::open::Error),
+    Git(#[from] Box<gix::open::Error>),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

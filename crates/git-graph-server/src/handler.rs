@@ -13,6 +13,9 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "getGraph" => handle_get_graph(req),
         "getCommitDetail" => handle_get_commit_detail(req),
         "getTags" => handle_get_tags(req),
+        "search" => handle_search(req),
+        "getDiff" => handle_get_diff(req),
+        "getFileContent" => handle_get_file_content(req),
         _ => JsonRpcResponse::error(req.id, -32601, format!("method not found: {}", req.method)),
     }
 }
@@ -105,6 +108,76 @@ fn handle_get_tags(req: &JsonRpcRequest) -> JsonRpcResponse {
 
     match git_graph_core::tag::list_tags(Path::new(repo_path)) {
         Ok(tags) => JsonRpcResponse::success(req.id, json!({ "tags": tags })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_search(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    let query = match req.params.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: query"),
+    };
+    let search_type = req
+        .params
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("all");
+    let max_count = req
+        .params
+        .get("maxCount")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(100) as usize;
+
+    match git_graph_core::search::search_commits(Path::new(repo_path), query, search_type, max_count)
+    {
+        Ok(results) => JsonRpcResponse::success(req.id, json!({ "results": results })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_get_diff(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    let commit_id = match req.params.get("commitId").and_then(|v| v.as_str()) {
+        Some(c) => c,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: commitId"),
+    };
+    let file_path = req.params.get("filePath").and_then(|v| v.as_str());
+
+    match git_graph_core::diff::get_commit_detail(Path::new(repo_path), commit_id) {
+        Ok((_, files)) => {
+            let diffs = match file_path {
+                Some(fp) => files.into_iter().filter(|f| f.path == fp).collect(),
+                None => files,
+            };
+            JsonRpcResponse::success(req.id, json!({ "diffs": diffs }))
+        }
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_get_file_content(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    let commit_id = match req.params.get("commitId").and_then(|v| v.as_str()) {
+        Some(c) => c,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: commitId"),
+    };
+    let file_path = match req.params.get("filePath").and_then(|v| v.as_str()) {
+        Some(f) => f,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: filePath"),
+    };
+
+    match git_graph_core::content::get_file_content(Path::new(repo_path), commit_id, file_path) {
+        Ok(content) => JsonRpcResponse::success(req.id, json!({ "content": content })),
         Err(e) => core_error_to_response(req.id, &e),
     }
 }

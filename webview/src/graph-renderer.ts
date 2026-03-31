@@ -60,7 +60,9 @@ export class GraphRenderer {
     private readonly container: HTMLElement;
     private readonly theme: ThemeManager;
     private readonly a11yRoot: HTMLElement;
+    private readonly tooltip: HTMLElement;
     private send: SendFn = () => {};
+    private onFocusSearch: (() => void) | null = null;
 
     private commits: Commit[] = [];
     private nodeMap = new Map<string, GraphNode>();
@@ -73,22 +75,32 @@ export class GraphRenderer {
     private hoverIndex = -1;
     private rafId: number | null = null;
     private scrollRafId: number | null = null;
+    private tooltipHideTimer: ReturnType<typeof setTimeout> | undefined;
+    private activeContextMenu: HTMLElement | null = null;
 
     constructor(canvas: HTMLCanvasElement, theme: ThemeManager) {
         this.ctx = canvas.getContext('2d')!;
         this.container = canvas.parentElement!;
         this.theme = theme;
 
-        // Accessibility DOM — visually hidden, screen-reader accessible
+        // Accessibility DOM
         this.a11yRoot = document.createElement('div');
         this.a11yRoot.setAttribute('role', 'grid');
         this.a11yRoot.setAttribute('aria-label', 'Commit list');
         this.a11yRoot.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)';
         this.container.appendChild(this.a11yRoot);
 
+        // Tooltip
+        this.tooltip = document.createElement('div');
+        this.tooltip.id = 'tooltip';
+        this.tooltip.className = 'graph-tooltip';
+        document.body.appendChild(this.tooltip);
+
         this.container.addEventListener('scroll', () => this.onScroll());
         canvas.addEventListener('click', (e) => this.onClick(e));
         canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        canvas.addEventListener('mouseleave', () => this.hideTooltip());
+        canvas.addEventListener('contextmenu', (e) => this.onContextMenu(e));
         this.container.setAttribute('tabindex', '0');
         this.container.addEventListener('keydown', (e) => this.onKeyDown(e));
         window.addEventListener('resize', () => this.resize());
@@ -98,6 +110,10 @@ export class GraphRenderer {
 
     setSend(fn: SendFn): void {
         this.send = fn;
+    }
+
+    setOnFocusSearch(fn: () => void): void {
+        this.onFocusSearch = fn;
     }
 
     render(data: GraphData): void {
@@ -207,12 +223,111 @@ export class GraphRenderer {
         if (idx === this.hoverIndex) { return; }
         this.hoverIndex = (idx >= 0 && idx < this.commits.length) ? idx : -1;
         this.scheduleRedraw();
+        this.updateTooltip(e, this.hoverIndex);
+    }
+
+    // --- Tooltip ---
+
+    private updateTooltip(e: MouseEvent, idx: number): void {
+        clearTimeout(this.tooltipHideTimer);
+        if (idx < 0 || idx >= this.commits.length) {
+            this.hideTooltip();
+            return;
+        }
+        const commit = this.commits[idx];
+        const branches = this.branchMap.get(commit.id);
+        const tags = this.tagMap.get(commit.id);
+        if (!branches && !tags) {
+            this.hideTooltip();
+            return;
+        }
+        const parts: string[] = [];
+        if (branches) { parts.push(...branches.map(b => (b.isHead ? '\u2022 ' : '') + b.name)); }
+        if (tags) { parts.push(...tags.map(t => '\ud83c\udff7 ' + t.name)); }
+        this.tooltip.textContent = parts.join('\n');
+        this.tooltip.style.whiteSpace = 'pre';
+        this.tooltip.style.display = 'block';
+        this.tooltip.style.left = `${e.clientX + 12}px`;
+        this.tooltip.style.top = `${e.clientY + 12}px`;
+    }
+
+    private hideTooltip(): void {
+        clearTimeout(this.tooltipHideTimer);
+        this.tooltipHideTimer = setTimeout(() => {
+            this.tooltip.style.display = 'none';
+        }, 150);
+    }
+
+    // --- Context menu ---
+
+    private onContextMenu(e: MouseEvent): void {
+        e.preventDefault();
+        this.closeContextMenu();
+        const idx = this.indexFromY(e.clientY);
+        if (idx < 0 || idx >= this.commits.length) { return; }
+        const commit = this.commits[idx];
+        this.selectedIndex = idx;
+        this.scheduleRedraw();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+
+        const items: [string, () => void][] = [
+            ['Copy SHA', () => this.send('copyToClipboard', { text: commit.id })],
+            ['Copy Short SHA', () => this.send('copyToClipboard', { text: commit.shortId })],
+            ['View Diff', () => this.send('openDiff', { commitId: commit.id })],
+        ];
+
+        for (const [label, action] of items) {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.textContent = label;
+            item.addEventListener('click', () => { action(); this.closeContextMenu(); });
+            menu.appendChild(item);
+        }
+
+        document.body.appendChild(menu);
+        this.activeContextMenu = menu;
+
+        const closeOnOutside = (ev: MouseEvent) => {
+            if (!menu.contains(ev.target as Node)) {
+                this.closeContextMenu();
+                document.removeEventListener('click', closeOnOutside);
+            }
+        };
+        // Defer to avoid immediate close from the same click
+        requestAnimationFrame(() => document.addEventListener('click', closeOnOutside));
+    }
+
+    private closeContextMenu(): void {
+        if (this.activeContextMenu) {
+            this.activeContextMenu.remove();
+            this.activeContextMenu = null;
+        }
     }
 
     // --- Keyboard navigation ---
 
     private onKeyDown(e: KeyboardEvent): void {
         const len = this.commits.length;
+        const mod = e.metaKey || e.ctrlKey;
+
+        // Ctrl+F / Cmd+F → focus search
+        if (mod && e.key === 'f') {
+            e.preventDefault();
+            this.onFocusSearch?.();
+            return;
+        }
+
+        // Ctrl+C / Cmd+C → copy short SHA of selected commit
+        if (mod && e.key === 'c' && this.selectedIndex >= 0) {
+            e.preventDefault();
+            this.send('copyToClipboard', { text: this.commits[this.selectedIndex].shortId });
+            return;
+        }
+
         if (len === 0) { return; }
 
         let idx = this.selectedIndex;
@@ -227,6 +342,7 @@ export class GraphRenderer {
                 if (idx >= 0) { this.send('requestCommitDetail', { commitId: this.commits[idx].id }); }
                 return;
             case 'Escape':
+                this.closeContextMenu();
                 this.selectedIndex = -1;
                 this.send('closeCommitDetail');
                 this.scheduleRedraw();

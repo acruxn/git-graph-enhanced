@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from 'node:child_process';
 import * as path from 'node:path';
+import * as vscode from 'vscode';
 import type { JsonRpcRequest, JsonRpcResponse } from './types';
 import { getConfig, CONFIG_REQUEST_TIMEOUT } from './config';
 import { outputChannel } from './extension';
@@ -10,21 +11,35 @@ interface PendingRequest {
     timer: ReturnType<typeof setTimeout>;
 }
 
+const MAX_RESTARTS = 3;
+const RESTART_WINDOW_MS = 60_000;
+
 export class Backend {
-    private static instance: Backend | null = null;
+    private static _instance: Backend | null = null;
+    private static _shuttingDown = false;
+    private static restartCount = 0;
+    private static lastRestartTime = 0;
+
     private process: ChildProcess | null = null;
     private nextId = 1;
     private pending = new Map<number, PendingRequest>();
     private stdoutBuffer = '';
+    private readonly extensionPath: string;
 
-    private constructor() {}
+    private constructor(extensionPath: string) {
+        this.extensionPath = extensionPath;
+    }
+
+    static get instance(): Backend | null {
+        return Backend._instance;
+    }
 
     static async create(extensionPath: string): Promise<Backend> {
-        if (Backend.instance) {
-            return Backend.instance;
+        if (Backend._instance) {
+            return Backend._instance;
         }
 
-        const backend = new Backend();
+        const backend = new Backend(extensionPath);
         const binaryPath = path.join(extensionPath, 'dist', 'git-graph-server');
 
         backend.process = spawn(binaryPath, [], {
@@ -55,12 +70,38 @@ export class Backend {
             }
             backend.pending.clear();
             backend.process = null;
-            if (Backend.instance === backend) {
-                Backend.instance = null;
+
+            if (Backend._instance === backend) {
+                Backend._instance = null;
+            }
+
+            // Crash recovery — only if not intentional shutdown
+            if (!Backend._shuttingDown && code !== 0) {
+                const now = Date.now();
+                if (now - Backend.lastRestartTime > RESTART_WINDOW_MS) {
+                    Backend.restartCount = 0;
+                }
+
+                if (Backend.restartCount < MAX_RESTARTS) {
+                    Backend.restartCount++;
+                    Backend.lastRestartTime = now;
+                    outputChannel.appendLine(`[backend] crash recovery: restart ${Backend.restartCount}/${MAX_RESTARTS}`);
+                    vscode.window.showWarningMessage('Git Graph Enhanced: backend crashed, restarting…');
+                    Backend.create(backend.extensionPath).catch((err) => {
+                        outputChannel.appendLine(`[backend] restart failed: ${err}`);
+                    });
+                } else {
+                    vscode.window.showErrorMessage(
+                        'Git Graph Enhanced: backend crashed repeatedly',
+                        'Open Output'
+                    ).then((action) => {
+                        if (action === 'Open Output') { outputChannel.show(); }
+                    });
+                }
             }
         });
 
-        Backend.instance = backend;
+        Backend._instance = backend;
         return backend;
     }
 
@@ -108,12 +149,12 @@ export class Backend {
     }
 
     static dispose(): void {
-        const instance = Backend.instance;
+        Backend._shuttingDown = true;
+        const instance = Backend._instance;
         if (!instance?.process) {
             return;
         }
 
-        // Send shutdown notification, then force-kill after 2s
         try {
             instance.process.stdin!.write(
                 JSON.stringify({ jsonrpc: '2.0', method: 'shutdown' }) + '\n'
@@ -135,6 +176,6 @@ export class Backend {
             pending.reject(new Error('Backend shutting down'));
         }
         instance.pending.clear();
-        Backend.instance = null;
+        Backend._instance = null;
     }
 }
