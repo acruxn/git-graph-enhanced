@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Rust build
+target/
+
+# VS Code extension package
+*.vsix
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kiro
+.kiro/
+
+# Misc docs (personal research notes)
+docs/misc/
