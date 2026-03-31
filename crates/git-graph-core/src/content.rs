@@ -3,14 +3,12 @@ use std::path::Path;
 use crate::error::{CoreError, CoreResult};
 use crate::repo::open_repo;
 
-pub fn get_file_content(
-    repo_path: &Path,
-    commit_id: &str,
-    file_path: &str,
-) -> CoreResult<String> {
+pub fn get_file_content(repo_path: &Path, commit_id: &str, file_path: &str) -> CoreResult<String> {
     let repo = open_repo(repo_path)?;
-    let oid = gix::ObjectId::from_hex(commit_id.as_bytes())
-        .map_err(|_| CoreError::InvalidRevision { rev: commit_id.to_owned() })?;
+    let oid =
+        gix::ObjectId::from_hex(commit_id.as_bytes()).map_err(|_| CoreError::InvalidRevision {
+            rev: commit_id.to_owned(),
+        })?;
 
     let object = repo
         .find_object(oid)

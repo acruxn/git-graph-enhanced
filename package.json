@@ -31,15 +31,44 @@
         "title": "Show Git Graph",
         "category": "Git Graph Enhanced"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Git Graph Enhanced",
+      "properties": {
+        "gitGraphEnhanced.maxCommits": {
+          "type": "number",
+          "default": 500,
+          "description": "Maximum number of commits to load per page"
+        },
+        "gitGraphEnhanced.requestTimeout": {
+          "type": "number",
+          "default": 30,
+          "description": "Timeout in seconds for backend requests"
+        },
+        "gitGraphEnhanced.maxDepthOfRepoSearch": {
+          "type": "number",
+          "default": 1,
+          "description": "Maximum folder depth to search for git repositories"
+        },
+        "gitGraphEnhanced.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": ["error", "warn", "info", "debug"],
+          "description": "Log level for the output channel"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
+    "package": "vsce package",
+    "package:target": "vsce package --target",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.20.0",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0"
