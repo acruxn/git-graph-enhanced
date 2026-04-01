@@ -26,3 +26,5 @@ docs/misc/
 
 # Test fixtures (generated)
 tests/fixtures/
+image*.png
+.vscode/
