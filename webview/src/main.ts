@@ -26,6 +26,37 @@ searchBar.setOnAuthorFilter((author) => {
     messageHandler.send('filterByAuthor', { author });
 });
 
+searchBar.setOnTagFilter((tagName) => {
+    if (!tagName) {
+        renderer.setFilteredIndices(null);
+        return;
+    }
+    messageHandler.send('filterByTag', { tagName });
+});
+
+searchBar.setOnBranchGroupFilter((pattern) => {
+    if (!pattern) {
+        renderer.setFilteredIndices(null);
+        return;
+    }
+    const branches = renderer.getAllBranches();
+    let matching: Set<string>;
+    if (pattern === '__local__') {
+        matching = new Set(branches.filter(b => !b.isRemote).map(b => b.commitId));
+    } else if (pattern === '__remote__') {
+        matching = new Set(branches.filter(b => b.isRemote).map(b => b.commitId));
+    } else {
+        const re = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+        matching = new Set(branches.filter(b => re.test(b.name)).map(b => b.commitId));
+    }
+    const commits = renderer.getCommits();
+    const indices: number[] = [];
+    for (let i = 0; i < commits.length; i++) {
+        if (matching.has(commits[i].id)) { indices.push(i); }
+    }
+    renderer.setFilteredIndices(indices.length > 0 ? indices : null);
+});
+
 commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
 commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
 

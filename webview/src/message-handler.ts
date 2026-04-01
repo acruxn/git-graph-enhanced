@@ -33,9 +33,12 @@ export class MessageHandler {
 
     onMessage(msg: { type: string; payload?: unknown }): void {
         switch (msg.type) {
-            case 'updateGraph':
-                this.renderer.render(msg.payload as Parameters<GraphRenderer['render']>[0]);
+            case 'updateGraph': {
+                const payload = msg.payload as Parameters<GraphRenderer['render']>[0] & { tags?: Array<{ name: string }> };
+                this.renderer.render(payload);
+                if (payload.tags) { this.searchBar.setTags(payload.tags); }
                 break;
+            }
             case 'updateCommitDetail':
                 this.commitPanel.show(msg.payload as CommitDetailData);
                 break;
@@ -55,10 +58,15 @@ export class MessageHandler {
             case 'error':
                 this.showError(msg.payload as ErrorPayload);
                 break;
-            case 'updateConfig':
-                this.renderer.setConfig(msg.payload as { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' });
-                this.commitPanel.setConfig(msg.payload as { issueLinks?: Record<string, string> });
+            case 'updateConfig': {
+                const cfg = msg.payload as Record<string, unknown>;
+                this.renderer.setConfig(cfg as { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' });
+                this.commitPanel.setConfig(cfg as { issueLinks?: Record<string, string> });
+                if (Array.isArray(cfg.branchGroups)) {
+                    this.searchBar.setBranchGroups(cfg.branchGroups as Array<{ label: string; pattern: string }>);
+                }
                 break;
+            }
             case 'triggerExport': {
                 const dataUrl = this.renderer.exportAsDataUrl();
                 this.vscode.postMessage({ type: 'exportGraph', payload: { dataUrl } });

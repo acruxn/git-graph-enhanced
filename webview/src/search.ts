@@ -10,6 +10,10 @@ export class SearchBar {
     private onSearch: ((query: string, type: string) => void) | null = null;
     private onOrderChange: ((order: string) => void) | null = null;
     private onAuthorFilter: ((author: string) => void) | null = null;
+    private onTagFilter: ((tagName: string) => void) | null = null;
+    private onBranchGroupFilter: ((pattern: string) => void) | null = null;
+    private readonly tagSelect: HTMLSelectElement;
+    private readonly branchGroupSelect: HTMLSelectElement;
 
     constructor() {
         this.container = document.createElement('div');
@@ -57,6 +61,26 @@ export class SearchBar {
         this.authorInput.setAttribute('aria-label', 'Filter by author');
         this.container.appendChild(this.authorInput);
 
+        this.tagSelect = document.createElement('select');
+        this.tagSelect.className = 'search-type';
+        this.tagSelect.setAttribute('aria-label', 'Filter by tag');
+        const allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = 'All tags';
+        this.tagSelect.appendChild(allOpt);
+        this.container.appendChild(this.tagSelect);
+
+        this.branchGroupSelect = document.createElement('select');
+        this.branchGroupSelect.className = 'search-type';
+        this.branchGroupSelect.setAttribute('aria-label', 'Filter by branch group');
+        for (const [value, label] of [['', 'All branches'], ['__local__', 'Local only'], ['__remote__', 'Remote only']]) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            this.branchGroupSelect.appendChild(opt);
+        }
+        this.container.appendChild(this.branchGroupSelect);
+
         const graphContainer = document.getElementById('graph-container');
         graphContainer?.parentElement?.insertBefore(this.container, graphContainer);
 
@@ -74,6 +98,12 @@ export class SearchBar {
                 this.onAuthorFilter?.(this.authorInput.value.trim());
             }, 300);
         });
+        this.tagSelect.addEventListener('change', () => {
+            this.onTagFilter?.(this.tagSelect.value);
+        });
+        this.branchGroupSelect.addEventListener('change', () => {
+            this.onBranchGroupFilter?.(this.branchGroupSelect.value);
+        });
     }
 
     setOnSearch(cb: (query: string, type: string) => void): void {
@@ -86,6 +116,41 @@ export class SearchBar {
 
     setOnAuthorFilter(cb: (author: string) => void): void {
         this.onAuthorFilter = cb;
+    }
+
+    setOnTagFilter(cb: (tagName: string) => void): void {
+        this.onTagFilter = cb;
+    }
+
+    setOnBranchGroupFilter(cb: (pattern: string) => void): void {
+        this.onBranchGroupFilter = cb;
+    }
+
+    setBranchGroups(groups: Array<{ label: string; pattern: string }>): void {
+        // Remove custom options (keep first 3: All, Local, Remote)
+        while (this.branchGroupSelect.options.length > 3) {
+            this.branchGroupSelect.remove(3);
+        }
+        for (const g of groups) {
+            const opt = document.createElement('option');
+            opt.value = g.pattern;
+            opt.textContent = g.label;
+            this.branchGroupSelect.appendChild(opt);
+        }
+    }
+
+    setTags(tags: Array<{ name: string }>): void {
+        const current = this.tagSelect.value;
+        while (this.tagSelect.options.length > 1) {
+            this.tagSelect.remove(1);
+        }
+        for (const tag of tags) {
+            const opt = document.createElement('option');
+            opt.value = tag.name;
+            opt.textContent = tag.name;
+            this.tagSelect.appendChild(opt);
+        }
+        this.tagSelect.value = current;
     }
 
     showResultsCount(count: number): void {
