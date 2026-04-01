@@ -1,4 +1,5 @@
 import { replaceEmoji } from './emoji';
+import { parseMarkdown } from './markdown';
 
 interface Commit {
     id: string;
@@ -194,34 +195,32 @@ export class CommitPanel {
     }
 
     private renderMarkdown(text: string, container: HTMLElement): void {
-        const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
         for (const line of text.split('\n')) {
             const p = document.createElement('div');
-            let lastIndex = 0;
-            let match;
-            regex.lastIndex = 0;
-            while ((match = regex.exec(line)) !== null) {
-                if (match.index > lastIndex) {
-                    p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
+            for (const seg of parseMarkdown(line)) {
+                switch (seg.type) {
+                    case 'bold': {
+                        const b = document.createElement('strong');
+                        b.textContent = seg.content;
+                        p.appendChild(b);
+                        break;
+                    }
+                    case 'italic': {
+                        const i = document.createElement('em');
+                        i.textContent = seg.content;
+                        p.appendChild(i);
+                        break;
+                    }
+                    case 'code': {
+                        const code = document.createElement('code');
+                        code.textContent = seg.content;
+                        code.className = 'inline-code';
+                        p.appendChild(code);
+                        break;
+                    }
+                    default:
+                        p.appendChild(document.createTextNode(seg.content));
                 }
-                if (match[2]) {
-                    const b = document.createElement('strong');
-                    b.textContent = match[2];
-                    p.appendChild(b);
-                } else if (match[3]) {
-                    const i = document.createElement('em');
-                    i.textContent = match[3];
-                    p.appendChild(i);
-                } else if (match[4]) {
-                    const code = document.createElement('code');
-                    code.textContent = match[4];
-                    code.className = 'inline-code';
-                    p.appendChild(code);
-                }
-                lastIndex = match.index + match[0].length;
-            }
-            if (lastIndex < line.length) {
-                p.appendChild(document.createTextNode(line.slice(lastIndex)));
             }
             container.appendChild(p);
         }
