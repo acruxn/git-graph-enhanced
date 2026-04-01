@@ -42,6 +42,11 @@ export class MessageHandler {
             case 'searchResults':
                 this.searchBar.showResultsCount((msg.payload as SearchResultsPayload).results.length);
                 break;
+            case 'filterResults': {
+                const p = msg.payload as { matchingIndices: number[] };
+                this.renderer.setFilteredIndices(p.matchingIndices);
+                break;
+            }
             case 'restoreScroll': {
                 const container = document.getElementById('graph-container');
                 if (container) { container.scrollTop = (msg.payload as { scrollTop: number }).scrollTop; }
@@ -49,6 +54,9 @@ export class MessageHandler {
             }
             case 'error':
                 this.showError(msg.payload as ErrorPayload);
+                break;
+            case 'updateConfig':
+                this.renderer.setConfig(msg.payload as { showDate: boolean; showAuthor: boolean });
                 break;
             case 'themeChanged':
                 break;

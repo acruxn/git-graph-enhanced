@@ -1,3 +1,5 @@
+import { replaceEmoji } from './emoji';
+
 interface Commit {
     id: string;
     shortId: string;
@@ -5,6 +7,8 @@ interface Commit {
     body: string;
     author: { name: string; email: string };
     timestamp: number;
+    gpgStatus?: string;
+    gpgSigner?: string;
 }
 
 interface FileDiff {
@@ -23,6 +27,7 @@ export interface CommitDetailData {
 export class CommitPanel {
     private readonly container: HTMLElement;
     private visible = false;
+    private onFileClick: ((filePath: string, commitId: string) => void) | null = null;
 
     constructor() {
         this.container = document.createElement('div');
@@ -53,7 +58,7 @@ export class CommitPanel {
         // Message + body
         const msg = document.createElement('div');
         msg.className = 'commit-panel-message';
-        msg.textContent = data.commit.message;
+        msg.textContent = replaceEmoji(data.commit.message);
         if (data.commit.body) {
             const body = document.createElement('pre');
             body.textContent = data.commit.body;
@@ -67,6 +72,14 @@ export class CommitPanel {
         meta.textContent = `${data.commit.author.name} <${data.commit.author.email}> \u00b7 ${new Date(data.commit.timestamp * 1000).toLocaleString()}`;
         this.container.appendChild(meta);
 
+        // GPG signature indicator
+        if (data.commit.gpgStatus && data.commit.gpgStatus !== 'none') {
+            const sig = document.createElement('div');
+            sig.className = 'commit-panel-signature';
+            sig.textContent = `\uD83D\uDD12 Signed${data.commit.gpgSigner ? ` by ${data.commit.gpgSigner}` : ''}`;
+            this.container.appendChild(sig);
+        }
+
         // Changed files
         if (data.files.length > 0) {
             const fileList = document.createElement('ul');
@@ -77,9 +90,11 @@ export class CommitPanel {
                 status.className = `file-status file-status-${file.status}`;
                 status.textContent = file.status[0].toUpperCase();
                 li.appendChild(status);
-                const path = document.createElement('span');
-                path.textContent = file.path;
-                li.appendChild(path);
+                const btn = document.createElement('button');
+                btn.className = 'file-link';
+                btn.textContent = file.path;
+                btn.addEventListener('click', () => this.onFileClick?.(file.path, data.commit.id));
+                li.appendChild(btn);
                 fileList.appendChild(li);
             }
             this.container.appendChild(fileList);
@@ -89,6 +104,10 @@ export class CommitPanel {
     hide(): void {
         this.visible = false;
         this.container.style.display = 'none';
+    }
+
+    setOnFileClick(cb: (filePath: string, commitId: string) => void): void {
+        this.onFileClick = cb;
     }
 
     get isVisible(): boolean {
