@@ -1,69 +1,64 @@
 # Git Graph Enhanced — TODO
 
-## Phase 1: Foundation (current)
+## ✅ Phase 1: Foundation — v0.1.0-alpha
 
-- [ ] Initial commit — planning files
-- [ ] Alpha: Rust workspace + git-graph-core + git-graph-server scaffold
-- [ ] Bravo: Extension host scaffold
-- [ ] Charlie: Webview UI scaffold
-- [ ] Delta: Build tooling + infra scaffold
-- [ ] Integration test — end-to-end wiring
-- [ ] Phase 1 commit + tag v0.1.0-alpha
+- [x] Rust workspace + git-graph-core + git-graph-server
+- [x] Extension host (package.json, backend IPC, webview provider, commands)
+- [x] Webview UI (Canvas renderer, message handler, theme manager)
+- [x] Build tooling (esbuild, build-rust.sh, CI, LICENSE, README)
 
-## Phase 2: Usable Graph
+## ✅ Phase 2: Usable Graph
 
-- [ ] DAG layout algorithm (column assignment, edge routing, color assignment)
-- [ ] Bezier curve edges + branch/tag badges
-- [ ] Virtual scrolling (render visible viewport only)
-- [ ] High-DPI / Retina Canvas scaling (devicePixelRatio)
-- [ ] Canvas hit testing (click/hover → commit index)
-- [ ] Commit detail panel (click → author, date, message, changed files)
-- [ ] `getCommitDetail` RPC method
-- [ ] VS Code theme color integration
-- [ ] Keyboard navigation in graph (up/down/enter/escape)
-- [ ] Hidden accessibility DOM mirroring visible commits
+- [x] DAG layout algorithm (column assignment, edge routing, color assignment)
+- [x] Bezier curve edges + branch/tag badges
+- [x] Virtual scrolling (render visible viewport only)
+- [x] High-DPI / Retina Canvas scaling (devicePixelRatio)
+- [x] Canvas hit testing (click/hover → commit index)
+- [x] Commit detail panel (click → author, date, message, changed files)
+- [x] `getCommitDetail` + `getTags` RPC methods
+- [x] VS Code theme color integration
+- [x] Keyboard navigation (arrows, Home/End, PageUp/Down, Enter, Escape)
+- [x] Hidden accessibility DOM mirroring visible commits
 
-## Phase 3: Interactive
+## ✅ Phase 3: Interactive
 
-- [ ] `search` + `getDiff` RPC methods
-- [ ] Search/filter UI (debounced input)
-- [ ] Changed files list in commit detail
-- [ ] Diff via VS Code native diff editor (TextDocumentContentProvider)
-- [ ] `getFileContent` RPC method for diff URIs
-- [ ] .git file watcher — detect external commits, branch switches, pulls
-- [ ] Backend crash recovery — auto-restart with retry limit
-- [ ] Request timeout (30s default, 120s for large ops)
-- [ ] Graceful backend shutdown on deactivate
-- [ ] State persistence — scroll position, last repo, column widths (workspaceState)
-- [ ] Status bar item ("Git Graph" button)
-- [ ] Keyboard navigation commands
-- [ ] Context menu registration
-- [ ] Copy to clipboard bridge
-- [ ] Canvas tooltip overlay (hover → positioned div)
-- [ ] Output channel logging (extension host + Rust stderr forwarding)
+- [x] `search` + `getDiff` + `getFileContent` RPC methods
+- [x] Search/filter UI (debounced 300ms, type selector)
+- [x] Diff via VS Code native diff editor (TextDocumentContentProvider)
+- [x] .git file watcher (debounced 500ms refresh)
+- [x] Backend crash recovery (3 retries in 60s)
+- [x] Request timeout (30s configurable)
+- [x] Graceful backend shutdown (notification + 2s kill)
+- [x] State persistence (scroll position via workspaceState)
+- [x] Status bar item + context menu + clipboard bridge
+- [x] Canvas tooltip overlay + right-click context menu
+- [x] Output channel logging (extension host + Rust stderr)
 
-## Phase 4: Polish & Ship
+## ✅ Phase 4: Polish & Ship — v0.1.0
 
-- [ ] Cross-platform CI matrix (macOS arm64/x64, Linux x64, Windows x64)
-- [ ] Platform-specific .vsix packaging
-- [ ] Binary size optimization (lto, strip, codegen-units=1, opt-level=z)
-- [ ] CI/CD pipeline for releases
-- [ ] Multi-repo discovery — scan workspace folders for .git
-- [ ] `initialize` handshake — protocol version negotiation
+- [x] Cross-platform CI matrix (macOS arm64/x64, Linux x64, Windows x64)
+- [x] Platform-specific .vsix packaging
+- [x] Binary size optimization (lto, strip, codegen-units=1, opt-level=z)
+- [x] Tag-triggered release workflow
+- [x] Multi-repo discovery (workspace scanning, quick pick)
+- [x] `initialize` handshake (protocol version negotiation)
+- [x] `shutdown` notification handling
+- [x] Extension settings schema (contributes.configuration)
+- [x] README with features, setup, settings, keybindings
+
+## Phase 4 deferred (not blocking v0.1.0)
+
 - [ ] Performance profiling on large repos (linux kernel, chromium)
 - [ ] Performance benchmark harness in CI
 - [ ] Memory optimization
 - [ ] Visual regression testing (Playwright screenshots)
 - [ ] Test fixture repos (octopus merges, empty repos, shallow clones, 10k+ commits)
-- [ ] README with screenshots + marketplace listing
-- [ ] Settings UI + graph style options
-- [ ] Extension settings schema (contributes.configuration)
 
 ---
 
 ## Feature Backlog
 
-Features below are post-v1.0, roughly prioritized within each category.
+Post-v1.0, roughly prioritized within each category.
 
 ### Graph Rendering & Layout
 
@@ -82,7 +77,6 @@ Features below are post-v1.0, roughly prioritized within each category.
 
 - [ ] Dedicated author filter — hide non-matching commits from graph (#11)
 - [ ] Filter by tags — show only tagged commits or commits between tags (#12)
-- [ ] Search across unloaded commits — full-repo search via Rust backend (#13)
 - [ ] Reflog inclusion — option to show reflog-only commits (#14)
 
 ### Commit Operations
@@ -129,15 +123,15 @@ Features below are post-v1.0, roughly prioritized within each category.
 - [ ] Stash keyboard navigation — CTRL+S / CTRL+SHIFT+S to jump between stashes (#40)
 - [ ] Improved stash discovery — visual indicators for stash locations (#41)
 
-### Infrastructure (post-v1.0)
+### Infrastructure
 
 - [ ] JSON-RPC cancellation — `$/cancelRequest` for in-flight requests (#66)
 - [ ] Streaming/chunked delivery for 100k+ commit responses (#64)
 - [ ] Backend-initiated notifications — `$/fileChanged`, `$/progress` (#65)
-- [ ] Async request dispatch in Rust server (tokio::spawn per request) (#8)
+- [ ] Async request dispatch in Rust server (tokio::spawn per request)
 - [ ] Binary signing — macOS Gatekeeper, Windows Authenticode (#70)
-- [ ] Non-UTF-8 file encoding support in diffs (encoding_rs) (#14)
-- [ ] Submodule discovery — open submodule repos as separate tabs (#13)
-- [ ] RTL/bidirectional text support in Canvas (#61)
-- [ ] Opt-in telemetry (#82)
-- [ ] Migration path from other git graph extensions (import settings) (#83)
+- [ ] Non-UTF-8 file encoding support in diffs (encoding_rs)
+- [ ] Submodule discovery — open submodule repos as separate tabs
+- [ ] RTL/bidirectional text support in Canvas
+- [ ] Opt-in telemetry
+- [ ] Migration path from other git graph extensions (import settings)
