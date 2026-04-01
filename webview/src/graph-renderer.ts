@@ -56,7 +56,7 @@ interface SendFn {
     (type: string, payload?: unknown): void;
 }
 
-const ROW_HEIGHT = 24;
+export const ROW_HEIGHT = 24;
 const COL_WIDTH = 16;
 const DOT_RADIUS = 4;
 const GRAPH_LEFT = 20;
@@ -111,6 +111,7 @@ export class GraphRenderer {
     private tooltipHideTimer: ReturnType<typeof setTimeout> | undefined;
     private activeContextMenu: HTMLElement | null = null;
     private spacer: HTMLElement | null = null;
+    private expandedHeight = 0;
 
     constructor(canvas: HTMLCanvasElement, theme: ThemeManager) {
         this.ctx = canvas.getContext('2d')!;
@@ -165,7 +166,24 @@ export class GraphRenderer {
     }
 
     getSelectedRowTop(): number {
-        return this.selectedIndex >= 0 ? this.selectedIndex * ROW_HEIGHT : 0;
+        return this.selectedIndex >= 0 ? this.rowY(this.selectedIndex) : 0;
+    }
+
+    setExpandedHeight(h: number): void {
+        this.expandedHeight = h;
+        this.resize();
+    }
+
+    private rowY(index: number): number {
+        const base = index * ROW_HEIGHT;
+        if (this.selectedIndex >= 0 && this.expandedHeight > 0 && index > this.selectedIndex) {
+            return base + this.expandedHeight;
+        }
+        return base;
+    }
+
+    private get totalHeight(): number {
+        return this.commits.length * ROW_HEIGHT + (this.selectedIndex >= 0 ? this.expandedHeight : 0);
     }
 
     setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight'; accessibilityMode?: boolean }): void {
@@ -225,6 +243,7 @@ export class GraphRenderer {
 
         this.updateStateBanner(data.state);
         this.selectedIndex = -1;
+        this.expandedHeight = 0;
         this.hoverIndex = -1;
         this.resize();
     }
@@ -253,8 +272,9 @@ export class GraphRenderer {
 
     clearSelection(): void {
         this.selectedIndex = -1;
+        this.expandedHeight = 0;
         this.highlightedBranch.clear();
-        this.scheduleRedraw();
+        this.resize();
     }
 
     private get textLeft(): number {
@@ -270,16 +290,28 @@ export class GraphRenderer {
     }
 
     private visibleRange(): [number, number] {
-        const start = Math.floor(this.scrollTop / ROW_HEIGHT);
-        const end = Math.min(start + Math.ceil(this.viewportHeight / ROW_HEIGHT) + 1, this.commits.length);
-        return [Math.max(0, start), end];
+        const scrollY = this.scrollTop;
+        const vpBottom = scrollY + this.viewportHeight;
+        // Find start: binary-ish but simple — rows before expansion are dense
+        let start = Math.floor(scrollY / ROW_HEIGHT);
+        if (this.selectedIndex >= 0 && this.expandedHeight > 0 && start > this.selectedIndex) {
+            start = Math.floor((scrollY - this.expandedHeight) / ROW_HEIGHT);
+        }
+        start = Math.max(0, start);
+        // Find end
+        let end = start;
+        while (end < this.commits.length && this.rowY(end) < vpBottom) {
+            end++;
+        }
+        end = Math.min(end + 1, this.commits.length);
+        return [start, end];
     }
 
     resize(): void {
         const canvas = this.ctx.canvas;
         const dpr = window.devicePixelRatio || 1;
         const width = this.container.clientWidth;
-        const totalHeight = this.commits.length * ROW_HEIGHT;
+        const totalHeight = this.totalHeight;
 
         // Spacer creates scrollable area
         if (!this.spacer) {
@@ -327,6 +359,16 @@ export class GraphRenderer {
     private indexFromY(clientY: number): number {
         const rect = this.ctx.canvas.getBoundingClientRect();
         const y = clientY - rect.top + this.scrollTop;
+        if (this.selectedIndex >= 0 && this.expandedHeight > 0) {
+            const gapStart = (this.selectedIndex + 1) * ROW_HEIGHT;
+            const gapEnd = gapStart + this.expandedHeight;
+            if (y >= gapStart && y < gapEnd) {
+                return this.selectedIndex;
+            }
+            if (y >= gapEnd) {
+                return Math.floor((y - this.expandedHeight) / ROW_HEIGHT);
+            }
+        }
         return Math.floor(y / ROW_HEIGHT);
     }
 
@@ -346,8 +388,9 @@ export class GraphRenderer {
 
         this.compareIndex = -1;
         this.selectedIndex = idx;
+        this.expandedHeight = 0;
         this.updateBranchHighlight();
-        this.scheduleRedraw();
+        this.resize();
         this.send('requestCommitDetail', { commitId: this.commits[idx].id });
     }
 
@@ -504,9 +547,10 @@ export class GraphRenderer {
             case 'Escape':
                 this.closeContextMenu();
                 this.selectedIndex = -1;
+                this.expandedHeight = 0;
                 this.highlightedBranch.clear();
                 this.onCloseDetail?.();
-                this.scheduleRedraw();
+                this.resize();
                 return;
             case 's':
                 if (mod) {
@@ -535,7 +579,7 @@ export class GraphRenderer {
     }
 
     private scrollIntoView(idx: number): void {
-        const rowTop = idx * ROW_HEIGHT;
+        const rowTop = this.rowY(idx);
         const rowBottom = rowTop + ROW_HEIGHT;
         if (rowTop < this.scrollTop) {
             this.container.scrollTop = rowTop;
@@ -604,7 +648,7 @@ export class GraphRenderer {
 
         // Row highlights
         for (let i = visStart; i < visEnd; i++) {
-            const y = i * ROW_HEIGHT - scrollY;
+            const y = this.rowY(i) - scrollY;
 
             // Branch color tint
             const tintNode = this.nodeMap.get(commits[i].id);
@@ -655,7 +699,7 @@ export class GraphRenderer {
         const hasFilter = this.filteredIndices !== null;
         for (let i = visStart; i < visEnd; i++) {
             const commit = commits[i];
-            const y = i * ROW_HEIGHT - scrollY + ROW_HEIGHT / 2;
+            const y = this.rowY(i) - scrollY + ROW_HEIGHT / 2;
             const node = this.nodeMap.get(commit.id);
             const col = node ? node.column : 0;
             const colorIdx = node ? node.color % colors.length : 0;
@@ -865,8 +909,8 @@ export class GraphRenderer {
         const toRow = commitIdx.get(edge.toCommitId)!;
         const fromX = GRAPH_LEFT + edge.fromColumn * COL_WIDTH;
         const toX = GRAPH_LEFT + edge.toColumn * COL_WIDTH;
-        const fromY = fromRow * ROW_HEIGHT + ROW_HEIGHT / 2 - scrollY;
-        const toY = toRow * ROW_HEIGHT + ROW_HEIGHT / 2 - scrollY;
+        const fromY = this.rowY(fromRow) + ROW_HEIGHT / 2 - scrollY;
+        const toY = this.rowY(toRow) + ROW_HEIGHT / 2 - scrollY;
 
         ctx.moveTo(fromX, fromY);
         if (edge.fromColumn === edge.toColumn) {
@@ -881,7 +925,8 @@ export class GraphRenderer {
                 ctx.lineTo(toX, midY);
                 ctx.lineTo(toX, toY);
             } else {
-                const cpOffsetY = ROW_HEIGHT / 2;
+                const dy = Math.abs(toY - fromY);
+                const cpOffsetY = Math.min(dy * 0.4, ROW_HEIGHT * 4);
                 ctx.bezierCurveTo(fromX, fromY + cpOffsetY, toX, toY - cpOffsetY, toX, toY);
             }
         }
