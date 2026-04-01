@@ -96,6 +96,12 @@ struct GraphCommitInput {
     parent_ids: Vec<String>,
 }
 
+#[derive(Deserialize)]
+struct PinnedColumn {
+    id: String,
+    column: usize,
+}
+
 fn handle_get_graph(req: &JsonRpcRequest) -> JsonRpcResponse {
     let commits: Vec<GraphCommitInput> =
         match serde_json::from_value(req.params.get("commits").cloned().unwrap_or_default()) {
@@ -105,10 +111,20 @@ fn handle_get_graph(req: &JsonRpcRequest) -> JsonRpcResponse {
             }
         };
 
+    let pinned: Vec<PinnedColumn> = req
+        .params
+        .get("pinnedCommitIds")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
     let input: Vec<(String, Vec<String>)> =
         commits.into_iter().map(|c| (c.id, c.parent_ids)).collect();
 
-    let (nodes, edges) = git_graph_core::graph::compute_layout(&input);
+    let pinned_columns: Vec<(String, usize)> =
+        pinned.into_iter().map(|p| (p.id, p.column)).collect();
+
+    let (nodes, edges) = git_graph_core::graph::compute_layout(&input, &pinned_columns);
     JsonRpcResponse::success(req.id, json!({ "nodes": nodes, "edges": edges }))
 }
 

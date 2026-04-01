@@ -31,13 +31,25 @@ fn lowest_free(columns: &[Option<String>]) -> usize {
 
 /// Compute graph layout from commits in topological order (newest first).
 /// Input: slice of (commit_id, parent_ids).
-pub fn compute_layout(commits: &[(String, Vec<String>)]) -> (Vec<GraphNode>, Vec<GraphEdge>) {
+/// `pinned_columns` pre-assigns specific commits to fixed columns.
+pub fn compute_layout(
+    commits: &[(String, Vec<String>)],
+    pinned_columns: &[(String, usize)],
+) -> (Vec<GraphNode>, Vec<GraphEdge>) {
     let mut active: Vec<Option<String>> = Vec::new();
     let mut col_color: HashMap<usize, usize> = HashMap::new();
     let mut next_color: usize = 0;
 
     let mut nodes = Vec::with_capacity(commits.len());
     let mut edges = Vec::new();
+
+    // Pre-assign pinned commits to their columns
+    for (commit_id, col) in pinned_columns {
+        while active.len() <= *col {
+            active.push(None);
+        }
+        active[*col] = Some(commit_id.clone());
+    }
 
     for (commit_id, parent_ids) in commits {
         // 1. Find column for this commit
@@ -128,7 +140,7 @@ mod tests {
             ("b".into(), vec!["c".into()]),
             ("c".into(), vec![]),
         ];
-        let (nodes, edges) = compute_layout(&commits);
+        let (nodes, edges) = compute_layout(&commits, &[]);
         assert_eq!(nodes.len(), 3);
         assert!(nodes.iter().all(|n| n.column == 0));
         assert_eq!(edges.len(), 2);
@@ -143,7 +155,7 @@ mod tests {
             ("p2".into(), vec!["base".into()]),
             ("base".into(), vec![]),
         ];
-        let (nodes, edges) = compute_layout(&commits);
+        let (nodes, edges) = compute_layout(&commits, &[]);
         assert_eq!(nodes.len(), 4);
         let p2_node = nodes.iter().find(|n| n.commit_id == "p2").unwrap();
         assert_eq!(p2_node.column, 1);
@@ -158,13 +170,13 @@ mod tests {
             ("b".into(), vec![]),
             ("d".into(), vec![]),
         ];
-        let (nodes, _) = compute_layout(&commits);
+        let (nodes, _) = compute_layout(&commits, &[]);
         assert_eq!(nodes.len(), 4);
     }
 
     #[test]
     fn test_empty_input() {
-        let (nodes, edges) = compute_layout(&[]);
+        let (nodes, edges) = compute_layout(&[], &[]);
         assert!(nodes.is_empty());
         assert!(edges.is_empty());
     }
@@ -172,7 +184,7 @@ mod tests {
     #[test]
     fn test_single_commit() {
         let commits = vec![("only".into(), vec![])];
-        let (nodes, edges) = compute_layout(&commits);
+        let (nodes, edges) = compute_layout(&commits, &[]);
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].column, 0);
         assert!(edges.is_empty());
@@ -186,7 +198,7 @@ mod tests {
             ("p2".into(), vec![]),
             ("p3".into(), vec![]),
         ];
-        let (nodes, edges) = compute_layout(&commits);
+        let (nodes, edges) = compute_layout(&commits, &[]);
         assert_eq!(nodes.len(), 4);
         let cols: Vec<usize> = nodes.iter().map(|n| n.column).collect();
         assert!(cols.contains(&0));
@@ -199,8 +211,20 @@ mod tests {
     fn test_color_cycling() {
         let commits: Vec<(String, Vec<String>)> =
             (0..10).map(|i| (format!("c{i}"), vec![])).collect();
-        let (nodes, _) = compute_layout(&commits);
+        let (nodes, _) = compute_layout(&commits, &[]);
         let max_color = nodes.iter().map(|n| n.color).max().unwrap();
         assert!(max_color < 8);
+    }
+
+    #[test]
+    fn test_pinned_column() {
+        let commits = vec![
+            ("a".into(), vec!["b".into()]),
+            ("b".into(), vec![]),
+            ("c".into(), vec!["b".into()]),
+        ];
+        let (nodes, _) = compute_layout(&commits, &[("c".into(), 1)]);
+        let c_node = nodes.iter().find(|n| n.commit_id == "c").unwrap();
+        assert_eq!(c_node.column, 1);
     }
 }
