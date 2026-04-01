@@ -19,6 +19,8 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "search" => handle_search(req),
         "getDiff" => handle_get_diff(req),
         "getFileContent" => handle_get_file_content(req),
+        "filterCommits" => handle_filter_commits(req),
+        "getStashes" => handle_get_stashes(req),
         _ => JsonRpcResponse::error(req.id, -32601, format!("method not found: {}", req.method)),
     }
 }
@@ -61,7 +63,13 @@ fn handle_get_commits(req: &JsonRpcRequest) -> JsonRpcResponse {
         .unwrap_or(500) as usize;
     let skip = req.params.get("skip").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
-    match git_graph_core::commit::list_commits(Path::new(repo_path), skip, max_count) {
+    let sort = req
+        .params
+        .get("sort")
+        .and_then(|v| v.as_str())
+        .unwrap_or("date");
+
+    match git_graph_core::commit::list_commits(Path::new(repo_path), skip, max_count, sort) {
         Ok((commits, has_more)) => {
             JsonRpcResponse::success(req.id, json!({ "commits": commits, "hasMore": has_more }))
         }
@@ -204,6 +212,34 @@ fn handle_get_file_content(req: &JsonRpcRequest) -> JsonRpcResponse {
 
     match git_graph_core::content::get_file_content(Path::new(repo_path), commit_id, file_path) {
         Ok(content) => JsonRpcResponse::success(req.id, json!({ "content": content })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_filter_commits(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let author = match req.params.get("author").and_then(|v| v.as_str()) {
+        Some(a) => a,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: author"),
+    };
+    let commits: Vec<git_graph_core::commit::Commit> =
+        match serde_json::from_value(req.params.get("commits").cloned().unwrap_or_default()) {
+            Ok(c) => c,
+            Err(_) => {
+                return JsonRpcResponse::error(req.id, -32602, "missing or invalid param: commits")
+            }
+        };
+    let indices = git_graph_core::filter::filter_by_author(&commits, author);
+    JsonRpcResponse::success(req.id, json!({ "matchingIndices": indices }))
+}
+
+fn handle_get_stashes(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+
+    match git_graph_core::stash::list_stashes(Path::new(repo_path)) {
+        Ok(stashes) => JsonRpcResponse::success(req.id, json!({ "stashes": stashes })),
         Err(e) => core_error_to_response(req.id, &e),
     }
 }

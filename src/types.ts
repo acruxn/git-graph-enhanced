@@ -14,6 +14,8 @@ export interface Commit {
     committer: Author;
     parentIds: string[];
     timestamp: number;
+    gpgStatus?: string;
+    gpgSigner?: string;
 }
 
 export interface Branch {
@@ -51,6 +53,12 @@ export interface FileDiff {
     status: 'added' | 'modified' | 'deleted' | 'renamed';
     additions: number;
     deletions: number;
+}
+
+export interface StashEntry {
+    index: number;
+    message: string;
+    commitId: string;
 }
 
 // Extension ↔ Webview messaging

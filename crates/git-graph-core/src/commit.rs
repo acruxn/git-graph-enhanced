@@ -24,21 +24,32 @@ pub struct Commit {
     pub committer: Author,
     pub parent_ids: Vec<String>,
     pub timestamp: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpg_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gpg_signer: Option<String>,
 }
 
 pub fn list_commits(
     repo_path: &Path,
     skip: usize,
     max_count: usize,
+    sort: &str,
 ) -> CoreResult<(Vec<Commit>, bool)> {
     let repo = open_repo(repo_path)?;
+    let mailmap = repo.open_mailmap();
     let head_id = repo
         .head_id()
         .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
 
+    let sorting = match sort {
+        "topo" => Sorting::BreadthFirst,
+        _ => Sorting::ByCommitTime(Default::default()),
+    };
+
     let walk = repo
         .rev_walk([head_id])
-        .sorting(Sorting::ByCommitTime(Default::default()))
+        .sorting(sorting)
         .all()
         .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
 
@@ -76,16 +87,24 @@ pub fn list_commits(
             short_id: short,
             message,
             body,
-            author: Author {
-                name: author_sig.name.to_string(),
-                email: author_sig.email.to_string(),
+            author: {
+                let resolved = mailmap.resolve_cow(author_sig);
+                Author {
+                    name: resolved.name.to_string(),
+                    email: resolved.email.to_string(),
+                }
             },
-            committer: Author {
-                name: committer_sig.name.to_string(),
-                email: committer_sig.email.to_string(),
+            committer: {
+                let resolved = mailmap.resolve_cow(committer_sig);
+                Author {
+                    name: resolved.name.to_string(),
+                    email: resolved.email.to_string(),
+                }
             },
             parent_ids: decoded.parents().map(|p| p.to_string()).collect(),
             timestamp,
+            gpg_status: None,
+            gpg_signer: None,
         });
     }
 

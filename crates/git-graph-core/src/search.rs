@@ -21,6 +21,7 @@ pub fn search_commits(
     max_count: usize,
 ) -> CoreResult<Vec<SearchResult>> {
     let repo = open_repo(repo_path)?;
+    let mailmap = repo.open_mailmap();
     let head_id = repo
         .head_id()
         .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
@@ -82,9 +83,12 @@ pub fn search_commits(
                 body,
                 author: author_sig
                     .as_ref()
-                    .map(|s| Author {
-                        name: s.name.to_string(),
-                        email: s.email.to_string(),
+                    .map(|s| {
+                        let resolved = mailmap.resolve_cow(*s);
+                        Author {
+                            name: resolved.name.to_string(),
+                            email: resolved.email.to_string(),
+                        }
                     })
                     .unwrap_or_else(|| Author {
                         name: String::new(),
@@ -92,9 +96,12 @@ pub fn search_commits(
                     }),
                 committer: committer_sig
                     .as_ref()
-                    .map(|s| Author {
-                        name: s.name.to_string(),
-                        email: s.email.to_string(),
+                    .map(|s| {
+                        let resolved = mailmap.resolve_cow(*s);
+                        Author {
+                            name: resolved.name.to_string(),
+                            email: resolved.email.to_string(),
+                        }
                     })
                     .unwrap_or_else(|| Author {
                         name: String::new(),
@@ -102,6 +109,8 @@ pub fn search_commits(
                     }),
                 parent_ids: decoded.parents().map(|p| p.to_string()).collect(),
                 timestamp,
+                gpg_status: None,
+                gpg_signer: None,
             };
 
             results.push(SearchResult {
