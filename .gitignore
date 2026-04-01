@@ -23,3 +23,6 @@ Thumbs.db
 
 # Misc docs (personal research notes)
 docs/misc/
+
+# Test fixtures (generated)
+tests/fixtures/
