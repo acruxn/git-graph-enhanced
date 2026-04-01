@@ -28,6 +28,13 @@ jobs:
       - run: cargo test --workspace
       - run: npm ci
       - run: node esbuild.mjs
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Rust: cargo test --workspace" >> $GITHUB_STEP_SUMMARY
+          echo "- TypeScript: npm test" >> $GITHUB_STEP_SUMMARY
+      - run: npm test
 
   build:
     needs: [lint, test]
