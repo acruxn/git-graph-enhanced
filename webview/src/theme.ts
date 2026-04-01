@@ -1,4 +1,4 @@
-const BRANCH_COLORS = [
+export const BRANCH_COLORS = [
     '#4285f4', '#ea4335', '#34a853', '#fbbc04',
     '#ff6d01', '#46bdc6', '#ab47bc', '#7baaf7',
 ];
