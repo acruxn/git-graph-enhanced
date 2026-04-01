@@ -17,6 +17,16 @@ const messageHandler = new MessageHandler(vscode, renderer, commitPanel, searchB
 renderer.setSend((type, payload) => messageHandler.send(type, payload));
 renderer.setOnFocusSearch(() => searchBar.focus());
 searchBar.setOnSearch((query, type) => messageHandler.send('search', { query, type }));
+searchBar.setOnOrderChange((order) => messageHandler.send('requestCommits', { order }));
+searchBar.setOnAuthorFilter((author) => {
+    if (author.length < 2) {
+        renderer.setFilteredIndices(null);
+        return;
+    }
+    messageHandler.send('filterByAuthor', { author });
+});
+
+commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
 
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
     if (e.data.type === 'themeChanged') {
