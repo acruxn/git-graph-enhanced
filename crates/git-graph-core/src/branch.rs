@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::CoreResult;
+use crate::error::{CoreError, CoreResult};
 use crate::repo::open_repo;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,4 +67,16 @@ pub fn list_branches(repo_path: &Path) -> CoreResult<Vec<Branch>> {
     }
 
     Ok(branches)
+}
+
+pub fn delete_branch(repo_path: &Path, branch_name: &str) -> CoreResult<()> {
+    let repo = open_repo(repo_path)?;
+    let ref_name = format!("refs/heads/{branch_name}");
+    let reference = repo
+        .find_reference(&ref_name)
+        .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+    reference
+        .delete()
+        .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+    Ok(())
 }
