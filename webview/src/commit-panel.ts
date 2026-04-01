@@ -6,6 +6,7 @@ interface Commit {
     message: string;
     body: string;
     author: { name: string; email: string };
+    parentIds: string[];
     timestamp: number;
     gpgStatus?: string;
     gpgSigner?: string;
@@ -53,6 +54,12 @@ export class CommitPanel {
         const sha = document.createElement('code');
         sha.textContent = data.commit.id;
         header.appendChild(sha);
+        if (data.commit.parentIds.length > 1) {
+            const mergeLabel = document.createElement('span');
+            mergeLabel.className = 'commit-panel-merge-label';
+            mergeLabel.textContent = 'Merge commit';
+            header.appendChild(mergeLabel);
+        }
         this.container.appendChild(header);
 
         // Message + body
