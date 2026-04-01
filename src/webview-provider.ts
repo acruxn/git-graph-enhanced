@@ -29,6 +29,16 @@ export class GraphPanel implements vscode.Disposable {
         this.setupMessageHandler();
         this.setupFileWatcher();
 
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('gitGraphEnhanced')) {
+                this.postMessage('updateConfig', {
+                    showDate: getConfig('showDateColumn', true),
+                    showAuthor: getConfig('showAuthorColumn', true),
+                    graphStyle: getConfig('graphStyle', 'curved'),
+                });
+            }
+        }, null, this.disposables);
+
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     }
 
@@ -138,9 +148,15 @@ export class GraphPanel implements vscode.Disposable {
                         case 'ready':
                             await this.handleReady();
                             break;
-                        case 'requestCommits':
-                            await this.handleRequestCommits(msg.payload);
+                        case 'requestCommits': {
+                            const p = msg.payload as Record<string, unknown> | undefined;
+                            if (p?.order) {
+                                await this.handleReady();
+                            } else {
+                                await this.handleRequestCommits(msg.payload);
+                            }
                             break;
+                        }
                         case 'requestCommitDetail':
                             await this.handleRequestCommitDetail(msg.payload);
                             break;
@@ -219,8 +235,13 @@ export class GraphPanel implements vscode.Disposable {
 
         const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
 
+        const branches = (branchesResult as { branches: Array<{ name: string; commitId: string; isHead: boolean }> }).branches;
+        const mainBranch = branches.find(b => b.name === 'main' || b.name === 'master');
+        const pinnedCommitIds = mainBranch ? [{ id: mainBranch.commitId, column: 0 }] : [];
+
         const graphResult = await this.backend.request('getGraph', {
             commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
+            pinnedCommitIds,
         });
 
         this.postMessage('updateGraph', {
