@@ -70,8 +70,9 @@ export class CommitPanel {
         msg.className = 'commit-panel-message';
         this.renderLinkedText(replaceEmoji(data.commit.message), msg);
         if (data.commit.body) {
-            const body = document.createElement('pre');
-            body.textContent = data.commit.body;
+            const body = document.createElement('div');
+            body.className = 'commit-panel-body';
+            this.renderMarkdown(replaceEmoji(data.commit.body), body);
             msg.appendChild(body);
         }
         this.container.appendChild(msg);
@@ -189,6 +190,40 @@ export class CommitPanel {
         }
         if (lastIndex < text.length) {
             parent.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
+    }
+
+    private renderMarkdown(text: string, container: HTMLElement): void {
+        const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
+        for (const line of text.split('\n')) {
+            const p = document.createElement('div');
+            let lastIndex = 0;
+            let match;
+            regex.lastIndex = 0;
+            while ((match = regex.exec(line)) !== null) {
+                if (match.index > lastIndex) {
+                    p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
+                }
+                if (match[2]) {
+                    const b = document.createElement('strong');
+                    b.textContent = match[2];
+                    p.appendChild(b);
+                } else if (match[3]) {
+                    const i = document.createElement('em');
+                    i.textContent = match[3];
+                    p.appendChild(i);
+                } else if (match[4]) {
+                    const code = document.createElement('code');
+                    code.textContent = match[4];
+                    code.className = 'inline-code';
+                    p.appendChild(code);
+                }
+                lastIndex = match.index + match[0].length;
+            }
+            if (lastIndex < line.length) {
+                p.appendChild(document.createTextNode(line.slice(lastIndex)));
+            }
+            container.appendChild(p);
         }
     }
 }
