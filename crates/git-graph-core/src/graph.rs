@@ -116,3 +116,91 @@ pub fn compute_layout(commits: &[(String, Vec<String>)]) -> (Vec<GraphNode>, Vec
 
     (nodes, edges)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_linear_history() {
+        let commits = vec![
+            ("a".into(), vec!["b".into()]),
+            ("b".into(), vec!["c".into()]),
+            ("c".into(), vec![]),
+        ];
+        let (nodes, edges) = compute_layout(&commits);
+        assert_eq!(nodes.len(), 3);
+        assert!(nodes.iter().all(|n| n.column == 0));
+        assert_eq!(edges.len(), 2);
+        assert!(edges.iter().all(|e| e.from_column == 0 && e.to_column == 0));
+    }
+
+    #[test]
+    fn test_merge_creates_second_column() {
+        let commits = vec![
+            ("merge".into(), vec!["p1".into(), "p2".into()]),
+            ("p1".into(), vec!["base".into()]),
+            ("p2".into(), vec!["base".into()]),
+            ("base".into(), vec![]),
+        ];
+        let (nodes, edges) = compute_layout(&commits);
+        assert_eq!(nodes.len(), 4);
+        let p2_node = nodes.iter().find(|n| n.commit_id == "p2").unwrap();
+        assert_eq!(p2_node.column, 1);
+        assert!(edges.iter().any(|e| e.from_column != e.to_column));
+    }
+
+    #[test]
+    fn test_root_commit_frees_column() {
+        let commits = vec![
+            ("a".into(), vec!["b".into()]),
+            ("c".into(), vec!["d".into()]),
+            ("b".into(), vec![]),
+            ("d".into(), vec![]),
+        ];
+        let (nodes, _) = compute_layout(&commits);
+        assert_eq!(nodes.len(), 4);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let (nodes, edges) = compute_layout(&[]);
+        assert!(nodes.is_empty());
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_single_commit() {
+        let commits = vec![("only".into(), vec![])];
+        let (nodes, edges) = compute_layout(&commits);
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].column, 0);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_octopus_merge() {
+        let commits = vec![
+            ("merge".into(), vec!["p1".into(), "p2".into(), "p3".into()]),
+            ("p1".into(), vec![]),
+            ("p2".into(), vec![]),
+            ("p3".into(), vec![]),
+        ];
+        let (nodes, edges) = compute_layout(&commits);
+        assert_eq!(nodes.len(), 4);
+        let cols: Vec<usize> = nodes.iter().map(|n| n.column).collect();
+        assert!(cols.contains(&0));
+        assert!(cols.contains(&1));
+        assert!(cols.contains(&2));
+        assert_eq!(edges.len(), 3);
+    }
+
+    #[test]
+    fn test_color_cycling() {
+        let commits: Vec<(String, Vec<String>)> =
+            (0..10).map(|i| (format!("c{i}"), vec![])).collect();
+        let (nodes, _) = compute_layout(&commits);
+        let max_color = nodes.iter().map(|n| n.color).max().unwrap();
+        assert!(max_color < 8);
+    }
+}
