@@ -87,6 +87,12 @@ body {
     padding: 2px 6px;
 }
 
+.commit-panel-merge-label {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.8;
+}
+
 .commit-panel-message {
     margin-bottom: 12px;
     line-height: 1.4;
