@@ -291,3 +291,160 @@ fn test_mailmap_resolves_author() {
     assert_eq!(commits[0].author.name, "New Name");
     assert_eq!(commits[0].author.email, "new@test.com");
 }
+
+#[test]
+fn test_search_by_hash() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "target commit");
+    let (commits, _) = git_graph_core::commit::list_commits(dir.path(), 0, 1, "date").unwrap();
+    let prefix = &commits[0].id[..7];
+    let results = git_graph_core::search::search_commits(dir.path(), prefix, "hash", 10).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].match_field, "hash");
+}
+
+#[test]
+fn test_search_type_all() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "find me");
+    let results = git_graph_core::search::search_commits(dir.path(), "find", "all", 10).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].match_field, "message");
+}
+
+#[test]
+fn test_list_stashes_empty() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "init");
+    let stashes = git_graph_core::stash::list_stashes(dir.path()).unwrap();
+    assert!(stashes.is_empty());
+}
+
+#[test]
+fn test_list_reflog() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "first");
+    commit(dir.path(), "second");
+    let reflog = git_graph_core::commit::list_reflog(dir.path(), 10).unwrap();
+    assert!(reflog.len() >= 2);
+}
+
+#[test]
+fn test_get_repo_state_clean() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "init");
+    let state = git_graph_core::repo::get_repo_state(dir.path()).unwrap();
+    assert_eq!(state, "clean");
+}
+
+#[test]
+fn test_delete_branch() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "init");
+    branch(dir.path(), "to-delete");
+    let branches_before = git_graph_core::branch::list_branches(dir.path()).unwrap();
+    assert!(branches_before.iter().any(|b| b.name == "to-delete"));
+
+    git_graph_core::branch::delete_branch(dir.path(), "to-delete").unwrap();
+
+    let branches_after = git_graph_core::branch::list_branches(dir.path()).unwrap();
+    assert!(!branches_after.iter().any(|b| b.name == "to-delete"));
+}
+
+#[test]
+fn test_delete_nonexistent_branch() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    commit(dir.path(), "init");
+    let result = git_graph_core::branch::delete_branch(dir.path(), "nonexistent");
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_file_content_binary() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join("binary.bin"), &[0u8, 1, 2, 255, 254]).unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    commit(dir.path(), "add binary");
+    let (commits, _) = git_graph_core::commit::list_commits(dir.path(), 0, 1, "date").unwrap();
+    let content =
+        git_graph_core::content::get_file_content(dir.path(), &commits[0].id, "binary.bin")
+            .unwrap();
+    assert_eq!(content, "(binary file)");
+}
+
+#[test]
+fn test_get_file_content_not_found() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join("exists.txt"), "hello").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    commit(dir.path(), "add file");
+    let (commits, _) = git_graph_core::commit::list_commits(dir.path(), 0, 1, "date").unwrap();
+    let result =
+        git_graph_core::content::get_file_content(dir.path(), &commits[0].id, "nonexistent.txt");
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_commit_detail_with_rename() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join("old.txt"), "content").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    commit(dir.path(), "add old");
+    Command::new("git")
+        .args(["mv", "old.txt", "new.txt"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    commit(dir.path(), "rename file");
+    let (commits, _) = git_graph_core::commit::list_commits(dir.path(), 0, 1, "date").unwrap();
+    let (_, files) = git_graph_core::diff::get_commit_detail(dir.path(), &commits[0].id).unwrap();
+    assert!(!files.is_empty());
+}
+
+#[test]
+fn test_filter_by_author_no_match() {
+    use git_graph_core::commit::{Author, Commit};
+    use git_graph_core::filter::filter_by_author;
+    let commits = vec![Commit {
+        id: "a".into(),
+        short_id: "a".into(),
+        message: "".into(),
+        body: "".into(),
+        author: Author {
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+        },
+        committer: Author {
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+        },
+        parent_ids: vec![],
+        timestamp: 0,
+        gpg_status: None,
+        gpg_signer: None,
+    }];
+    let indices = filter_by_author(&commits, "zzz_no_match");
+    assert!(indices.is_empty());
+}
