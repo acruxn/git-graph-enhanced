@@ -269,6 +269,13 @@ export class GraphPanel implements vscode.Disposable {
                             vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
                             break;
                         }
+                        case 'abortOperation': {
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            await this.backend.request('abortOperation', { repoPath });
+                            await this.handleReady();
+                            break;
+                        }
                     }
                 } catch (err) {
                     outputChannel.appendLine(`[webview] error handling "${msg.type}": ${err}`);
@@ -290,11 +297,12 @@ export class GraphPanel implements vscode.Disposable {
         const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
         const showReflog = getConfig('showReflog', false);
 
-        const [commitsResult, branchesResult, tagsResult, stashesResult] = await Promise.all([
+        const [commitsResult, branchesResult, tagsResult, stashesResult, stateResult] = await Promise.all([
             this.backend.request('getCommits', { repoPath, maxCount }),
             this.backend.request('getBranches', { repoPath }),
             this.backend.request('getTags', { repoPath }),
             this.backend.request('getStashes', { repoPath }),
+            this.backend.request('getRepoState', { repoPath }),
         ]);
 
         const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
@@ -326,6 +334,7 @@ export class GraphPanel implements vscode.Disposable {
             ...(branchesResult as object),
             ...(tagsResult as object),
             ...(stashesResult as object),
+            ...(stateResult as object),
         });
 
         this.postMessage('updateConfig', {

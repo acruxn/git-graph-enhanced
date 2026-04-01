@@ -166,6 +166,32 @@ body {
     text-decoration: underline;
 }
 
+/* State banner */
+.state-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--vscode-inputValidation-warningBackground, #352a05);
+    border-bottom: 1px solid var(--vscode-inputValidation-warningBorder, #9d8012);
+    color: var(--vscode-foreground);
+    font-size: 13px;
+}
+
+.state-banner-abort {
+    background: none;
+    border: 1px solid var(--vscode-button-border, var(--vscode-foreground));
+    color: var(--vscode-foreground);
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 2px;
+}
+
+.state-banner-abort:hover {
+    background: var(--vscode-button-hoverBackground, rgba(128,128,128,0.2));
+}
+
 /* Search bar */
 .search-bar {
     display: flex;
@@ -239,4 +265,12 @@ body {
 
 .author-filter {
     max-width: 180px;
+}
+
+.inline-code {
+    background: var(--vscode-textCodeBlock-background);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
 }

@@ -23,6 +23,8 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "getStashes" => handle_get_stashes(req),
         "getReflog" => handle_get_reflog(req),
         "deleteBranches" => handle_delete_branches(req),
+        "getRepoState" => handle_get_repo_state(req),
+        "abortOperation" => handle_abort_operation(req),
         _ => JsonRpcResponse::error(req.id, -32601, format!("method not found: {}", req.method)),
     }
 }
@@ -303,6 +305,28 @@ fn handle_delete_branches(req: &JsonRpcRequest) -> JsonRpcResponse {
         .collect();
 
     JsonRpcResponse::success(req.id, json!({ "results": results }))
+}
+
+fn handle_get_repo_state(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    match git_graph_core::repo::get_repo_state(Path::new(repo_path)) {
+        Ok(state) => JsonRpcResponse::success(req.id, json!({ "state": state })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_abort_operation(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    match git_graph_core::repo::abort_operation(Path::new(repo_path)) {
+        Ok(()) => JsonRpcResponse::success(req.id, json!({ "success": true })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
 }
 
 fn core_error_to_response(id: u64, err: &CoreError) -> JsonRpcResponse {
