@@ -73,7 +73,7 @@ export class GraphRenderer {
     private readonly tooltip: HTMLElement;
     private send: SendFn = () => {};
     private onFocusSearch: (() => void) | null = null;
-    private config: { showDate: boolean; showAuthor: boolean; graphStyle: 'curved' | 'angular' | 'straight' } = { showDate: true, showAuthor: true, graphStyle: 'curved' };
+    private config: { showDate: boolean; showAuthor: boolean; graphStyle: 'curved' | 'angular' | 'straight'; accessibilityMode: boolean } = { showDate: true, showAuthor: true, graphStyle: 'curved', accessibilityMode: false };
 
     private commits: Commit[] = [];
     private nodeMap = new Map<string, GraphNode>();
@@ -135,13 +135,21 @@ export class GraphRenderer {
         return this.ctx.canvas.toDataURL('image/png');
     }
 
-    setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' }): void {
+    setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight'; accessibilityMode?: boolean }): void {
         this.config = { ...this.config, ...cfg };
         this.scheduleRedraw();
     }
 
     getCommits(): Commit[] {
         return this.commits;
+    }
+
+    getAllBranches(): Branch[] {
+        const all: Branch[] = [];
+        for (const arr of this.branchMap.values()) {
+            all.push(...arr);
+        }
+        return all;
     }
 
     setFilteredIndices(indices: number[] | null): void {
@@ -501,10 +509,17 @@ export class GraphRenderer {
         for (let i = visStart; i < visEnd; i++) {
             const y = i * ROW_HEIGHT - scrollY;
             if (i === this.selectedIndex) {
-                ctx.fillStyle = theme.focusBorder;
-                ctx.globalAlpha = 0.15;
-                ctx.fillRect(0, y, width, ROW_HEIGHT);
-                ctx.globalAlpha = 1;
+                if (this.config.accessibilityMode) {
+                    ctx.strokeStyle = theme.focusBorder;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(1.5, y + 1.5, width - 3, ROW_HEIGHT - 3);
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.fillStyle = theme.focusBorder;
+                    ctx.globalAlpha = 0.15;
+                    ctx.fillRect(0, y, width, ROW_HEIGHT);
+                    ctx.globalAlpha = 1;
+                }
             } else if (i === this.compareIndex) {
                 ctx.fillStyle = colors[1];
                 ctx.globalAlpha = 0.12;
@@ -540,16 +555,49 @@ export class GraphRenderer {
             // Dot
             const dotX = GRAPH_LEFT + col * COL_WIDTH;
             const isMerge = commit.parentIds.length > 1;
-            ctx.beginPath();
+            const isRoot = commit.parentIds.length === 0;
             ctx.globalAlpha = dimAlpha;
-            ctx.arc(dotX, y, DOT_RADIUS, 0, Math.PI * 2);
-            if (isMerge) {
-                ctx.strokeStyle = colors[colorIdx];
-                ctx.lineWidth = 2;
-                ctx.stroke();
+            if (this.config.accessibilityMode) {
+                const r = DOT_RADIUS;
+                if (isMerge) {
+                    // Diamond for merge
+                    ctx.beginPath();
+                    ctx.moveTo(dotX, y - r);
+                    ctx.lineTo(dotX + r, y);
+                    ctx.lineTo(dotX, y + r);
+                    ctx.lineTo(dotX - r, y);
+                    ctx.closePath();
+                    ctx.fillStyle = colors[colorIdx];
+                    ctx.fill();
+                } else if (isRoot) {
+                    // Square for root
+                    ctx.fillStyle = colors[colorIdx];
+                    ctx.fillRect(dotX - r, y - r, r * 2, r * 2);
+                } else {
+                    // Circle for normal
+                    ctx.beginPath();
+                    ctx.arc(dotX, y, r, 0, Math.PI * 2);
+                    ctx.fillStyle = colors[colorIdx];
+                    ctx.fill();
+                }
+                // Branch label (first 3 chars) next to dot
+                const branches = this.branchMap.get(commit.id);
+                if (branches && branches.length > 0) {
+                    ctx.font = 'bold 8px var(--vscode-font-family, sans-serif)';
+                    ctx.fillStyle = colors[colorIdx];
+                    ctx.fillText(branches[0].name.slice(0, 3), dotX + r + 2, y + 3);
+                }
             } else {
-                ctx.fillStyle = colors[colorIdx];
-                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(dotX, y, DOT_RADIUS, 0, Math.PI * 2);
+                if (isMerge) {
+                    ctx.strokeStyle = colors[colorIdx];
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = colors[colorIdx];
+                    ctx.fill();
+                }
             }
             ctx.globalAlpha = 1;
 
