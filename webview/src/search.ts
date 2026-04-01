@@ -12,6 +12,9 @@ export class SearchBar {
     private onAuthorFilter: ((author: string) => void) | null = null;
     private onTagFilter: ((tagName: string) => void) | null = null;
     private onBranchGroupFilter: ((pattern: string) => void) | null = null;
+    private onSortDirection: ((dir: 'asc' | 'desc') => void) | null = null;
+    private sortDirection: 'asc' | 'desc' = 'desc';
+    private readonly sortDirBtn: HTMLButtonElement;
     private readonly tagSelect: HTMLSelectElement;
     private readonly branchGroupSelect: HTMLSelectElement;
 
@@ -52,6 +55,12 @@ export class SearchBar {
         this.container.appendChild(this.input);
         this.container.appendChild(this.typeSelect);
         this.container.appendChild(this.orderSelect);
+        this.sortDirBtn = document.createElement('button');
+        this.sortDirBtn.className = 'sort-dir-btn';
+        this.sortDirBtn.textContent = '↑';
+        this.sortDirBtn.title = 'Newest first';
+        this.sortDirBtn.setAttribute('aria-label', 'Sort direction');
+        this.container.appendChild(this.sortDirBtn);
         this.container.appendChild(this.resultsCount);
 
         this.authorInput = document.createElement('input');
@@ -104,6 +113,12 @@ export class SearchBar {
         this.branchGroupSelect.addEventListener('change', () => {
             this.onBranchGroupFilter?.(this.branchGroupSelect.value);
         });
+        this.sortDirBtn.addEventListener('click', () => {
+            this.sortDirection = this.sortDirection === 'desc' ? 'asc' : 'desc';
+            this.sortDirBtn.textContent = this.sortDirection === 'desc' ? '↑' : '↓';
+            this.sortDirBtn.title = this.sortDirection === 'desc' ? 'Newest first' : 'Oldest first';
+            this.onSortDirection?.(this.sortDirection);
+        });
     }
 
     setOnSearch(cb: (query: string, type: string) => void): void {
@@ -124,6 +139,10 @@ export class SearchBar {
 
     setOnBranchGroupFilter(cb: (pattern: string) => void): void {
         this.onBranchGroupFilter = cb;
+    }
+
+    setOnSortDirection(cb: (dir: 'asc' | 'desc') => void): void {
+        this.onSortDirection = cb;
     }
 
     setBranchGroups(groups: Array<{ label: string; pattern: string }>): void {

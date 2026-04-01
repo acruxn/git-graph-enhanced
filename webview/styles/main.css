@@ -256,6 +256,20 @@ body {
     color: var(--vscode-descriptionForeground);
 }
 
+.sort-dir-btn {
+    padding: 4px 8px;
+    background: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.sort-dir-btn:hover {
+    background: var(--vscode-button-hoverBackground, rgba(128,128,128,0.2));
+}
+
 /* Tooltip */
 .graph-tooltip {
     display: none;

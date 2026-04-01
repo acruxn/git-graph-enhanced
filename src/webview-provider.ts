@@ -361,6 +361,9 @@ export class GraphPanel implements vscode.Disposable {
         const sort = p?.order === 'topo' ? 'topo' : 'date';
         const result = await this.backend.request('getCommits', { repoPath, sort, ...p });
         const commits = result as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
+        if (p?.sortDirection === 'asc') {
+            commits.commits.reverse();
+        }
         const graphResult = await this.backend.request('getGraph', {
             commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
         });
