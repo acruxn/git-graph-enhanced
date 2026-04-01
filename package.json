@@ -55,6 +55,21 @@
           "default": "info",
           "enum": ["error", "warn", "info", "debug"],
           "description": "Log level for the output channel"
+        },
+        "gitGraphEnhanced.openOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically open the graph when a workspace with a git repository is opened"
+        },
+        "gitGraphEnhanced.showDateColumn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show date column in graph"
+        },
+        "gitGraphEnhanced.showAuthorColumn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show author column in graph"
         }
       }
     }

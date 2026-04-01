@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Backend } from './backend';
 import { registerCommands } from './commands';
+import { getConfig } from './config';
 import { GitContentProvider } from './diff-provider';
 
 export const outputChannel = vscode.window.createOutputChannel('Git Graph Enhanced');
@@ -18,6 +19,10 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBarItem.show();
 
     context.subscriptions.push(statusBarItem, outputChannel);
+
+    if (getConfig('openOnStartup', false)) {
+        vscode.commands.executeCommand('gitGraphEnhanced.show');
+    }
 }
 
 export function deactivate(): void {

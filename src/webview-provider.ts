@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Backend } from './backend';
 import type { WebviewMessage } from './types';
@@ -155,9 +156,40 @@ export class GraphPanel implements vscode.Disposable {
                         case 'openDiff':
                             await this.handleOpenDiff(msg.payload);
                             break;
+                        case 'openFile': {
+                            const p = msg.payload as { filePath: string; commitId?: string };
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            if (p.commitId) {
+                                const uri = buildDiffUri(p.filePath, p.commitId, repoPath);
+                                await vscode.commands.executeCommand('vscode.open', uri);
+                            } else {
+                                const fileUri = vscode.Uri.file(path.join(repoPath, p.filePath));
+                                await vscode.commands.executeCommand('vscode.open', fileUri);
+                            }
+                            break;
+                        }
                         case 'saveScrollPosition':
                             this.context.workspaceState.update('graphScrollTop', (msg.payload as { scrollTop: number }).scrollTop);
                             break;
+                        case 'compareCommits': {
+                            const p = msg.payload as { commitId1: string; commitId2: string; filePath?: string };
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath || !p.filePath) { break; }
+                            const left = buildDiffUri(p.filePath, p.commitId1, repoPath);
+                            const right = buildDiffUri(p.filePath, p.commitId2, repoPath);
+                            await vscode.commands.executeCommand('vscode.diff', left, right,
+                                `${p.filePath} (${p.commitId1.slice(0, 7)} ↔ ${p.commitId2.slice(0, 7)})`);
+                            break;
+                        }
+                        case 'filterByAuthor': {
+                            const p = msg.payload as { author: string };
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            const result = await this.backend.request('search', { repoPath, query: p.author, type: 'author' });
+                            this.postMessage('filterResults', result);
+                            break;
+                        }
                     }
                 } catch (err) {
                     outputChannel.appendLine(`[webview] error handling "${msg.type}": ${err}`);
@@ -178,10 +210,11 @@ export class GraphPanel implements vscode.Disposable {
 
         const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
 
-        const [commitsResult, branchesResult, tagsResult] = await Promise.all([
+        const [commitsResult, branchesResult, tagsResult, stashesResult] = await Promise.all([
             this.backend.request('getCommits', { repoPath, maxCount }),
             this.backend.request('getBranches', { repoPath }),
             this.backend.request('getTags', { repoPath }),
+            this.backend.request('getStashes', { repoPath }),
         ]);
 
         const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
@@ -195,6 +228,12 @@ export class GraphPanel implements vscode.Disposable {
             ...(graphResult as object),
             ...(branchesResult as object),
             ...(tagsResult as object),
+            ...(stashesResult as object),
+        });
+
+        this.postMessage('updateConfig', {
+            showDate: getConfig('showDateColumn', true),
+            showAuthor: getConfig('showAuthorColumn', true),
         });
 
         const savedScroll = this.context.workspaceState.get<number>('graphScrollTop', 0);
@@ -206,7 +245,9 @@ export class GraphPanel implements vscode.Disposable {
     private async handleRequestCommits(payload: unknown): Promise<void> {
         const repoPath = await this.discoverRepoPath();
         if (!repoPath) { return; }
-        const result = await this.backend.request('getCommits', { repoPath, ...(payload as object) });
+        const p = payload as Record<string, unknown> | undefined;
+        const sort = p?.order === 'topo' ? 'topo' : 'date';
+        const result = await this.backend.request('getCommits', { repoPath, sort, ...p });
         const commits = result as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
         const graphResult = await this.backend.request('getGraph', {
             commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
