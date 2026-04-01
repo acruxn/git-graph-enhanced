@@ -273,3 +273,88 @@ fn test_shutdown_notification() {
     let status = child.wait().unwrap();
     assert!(status.success());
 }
+
+#[test]
+fn test_filter_commits_via_rpc() {
+    let mut child = spawn_server();
+    let req = r#"{"jsonrpc":"2.0","id":1,"method":"filterCommits","params":{"author":"Alice","commits":[{"id":"a","shortId":"a","message":"","body":"","author":{"name":"Alice","email":"a@t.com"},"committer":{"name":"Alice","email":"a@t.com"},"parentIds":[],"timestamp":0},{"id":"b","shortId":"b","message":"","body":"","author":{"name":"Bob","email":"b@t.com"},"committer":{"name":"Bob","email":"b@t.com"},"parentIds":[],"timestamp":0}]}}"#;
+    let resp = send_recv(&mut child, req);
+    let indices = resp["result"]["matchingIndices"].as_array().unwrap();
+    assert_eq!(indices.len(), 1);
+    assert_eq!(indices[0], 0);
+    child.kill().ok();
+}
+
+#[test]
+fn test_delete_branches_via_rpc() {
+    let dir = TempDir::new().unwrap();
+    init_test_repo(dir.path());
+    Command::new("git")
+        .args(["branch", "to-delete"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let mut child = spawn_server();
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"deleteBranches","params":{{"repoPath":"{}","branches":["to-delete"]}}}}"#,
+        dir.path().display()
+    );
+    let resp = send_recv(&mut child, &req);
+    let results = resp["result"]["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["success"], true);
+    child.kill().ok();
+}
+
+#[test]
+fn test_get_reflog_via_rpc() {
+    let dir = TempDir::new().unwrap();
+    init_test_repo(dir.path());
+    let mut child = spawn_server();
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"getReflog","params":{{"repoPath":"{}","maxCount":10}}}}"#,
+        dir.path().display()
+    );
+    let resp = send_recv(&mut child, &req);
+    let commits = resp["result"]["commits"].as_array().unwrap();
+    assert!(!commits.is_empty());
+    child.kill().ok();
+}
+
+#[test]
+fn test_get_diff_via_rpc() {
+    let dir = TempDir::new().unwrap();
+    init_test_repo_with_file(dir.path());
+    let mut child = spawn_server();
+
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"getCommits","params":{{"repoPath":"{}","maxCount":1}}}}"#,
+        dir.path().display()
+    );
+    let resp = send_recv(&mut child, &req);
+    let commit_id = resp["result"]["commits"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let req2 = format!(
+        r#"{{"jsonrpc":"2.0","id":2,"method":"getDiff","params":{{"repoPath":"{}","commitId":"{}"}}}}"#,
+        dir.path().display(),
+        commit_id
+    );
+    let resp2 = send_recv(&mut child, &req2);
+    assert!(resp2["result"]["diffs"].is_array());
+    child.kill().ok();
+}
+
+#[test]
+fn test_initialize_version_mismatch() {
+    let mut child = spawn_server();
+    let resp = send_recv(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":99}}"#,
+    );
+    assert_eq!(resp["error"]["code"], -32600);
+    child.kill().ok();
+}
