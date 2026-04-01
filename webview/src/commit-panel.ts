@@ -29,6 +29,8 @@ export class CommitPanel {
     private readonly container: HTMLElement;
     private visible = false;
     private onFileClick: ((filePath: string, commitId: string) => void) | null = null;
+    private issueLinks: Record<string, string> = {};
+    private onOpenExternal: ((url: string) => void) | null = null;
 
     constructor() {
         this.container = document.createElement('div');
@@ -65,7 +67,7 @@ export class CommitPanel {
         // Message + body
         const msg = document.createElement('div');
         msg.className = 'commit-panel-message';
-        msg.textContent = replaceEmoji(data.commit.message);
+        this.renderLinkedText(replaceEmoji(data.commit.message), msg);
         if (data.commit.body) {
             const body = document.createElement('pre');
             body.textContent = data.commit.body;
@@ -117,7 +119,67 @@ export class CommitPanel {
         this.onFileClick = cb;
     }
 
+    setOnOpenExternal(cb: (url: string) => void): void {
+        this.onOpenExternal = cb;
+    }
+
+    setConfig(cfg: { issueLinks?: Record<string, string> }): void {
+        if (cfg.issueLinks) { this.issueLinks = cfg.issueLinks; }
+    }
+
     get isVisible(): boolean {
         return this.visible;
+    }
+
+    private renderLinkedText(text: string, parent: HTMLElement): void {
+        const patterns = Object.entries(this.issueLinks);
+        if (patterns.length === 0) {
+            parent.textContent = text;
+            return;
+        }
+
+        const combined = patterns.map(([re]) => `(${re})`).join('|');
+        let regex: RegExp;
+        try {
+            regex = new RegExp(combined, 'g');
+        } catch {
+            parent.textContent = text;
+            return;
+        }
+
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+            }
+            // Find which pattern matched
+            let url: string | undefined;
+            let groupOffset = 1;
+            for (const [re, template] of patterns) {
+                const sub = new RegExp(re).exec(match[0]);
+                if (sub) {
+                    url = template.replace(/\$(\d+)/g, (_, n) => sub[Number(n)] ?? '');
+                    break;
+                }
+                groupOffset += (new RegExp(re)).exec('')?.length ?? 1;
+            }
+            const link = document.createElement('a');
+            link.textContent = match[0];
+            link.href = '#';
+            link.className = 'issue-link';
+            if (url) {
+                const resolvedUrl = url;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.onOpenExternal?.(resolvedUrl);
+                });
+            }
+            parent.appendChild(link);
+            lastIndex = regex.lastIndex;
+        }
+        if (lastIndex < text.length) {
+            parent.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
     }
 }
