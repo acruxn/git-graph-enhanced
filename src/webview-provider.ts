@@ -6,24 +6,28 @@ import type { WebviewMessage } from './types';
 import { buildDiffUri } from './diff-provider';
 import { getConfig, CONFIG_MAX_COMMITS } from './config';
 import { outputChannel } from './extension';
+import { fetchAvatars, fetchAvatarDataUri } from './avatar';
+import { detectProvider, buildPrUrl } from './pr-provider';
 
 export class GraphPanel implements vscode.Disposable {
-    private static currentPanel: GraphPanel | undefined;
+    private static panels = new Map<string, GraphPanel>();
     private readonly panel: vscode.WebviewPanel;
     private readonly backend: Backend;
     private readonly context: vscode.ExtensionContext;
     private readonly disposables: vscode.Disposable[] = [];
-    private repoPath: string | undefined;
+    private readonly repoPath: string;
 
     private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
         backend: Backend,
         context: vscode.ExtensionContext,
+        repoPath: string,
     ) {
         this.panel = panel;
         this.backend = backend;
         this.context = context;
+        this.repoPath = repoPath;
 
         this.panel.webview.html = this.getWebviewContent(this.panel.webview, extensionUri);
         this.setupMessageHandler();
@@ -45,15 +49,17 @@ export class GraphPanel implements vscode.Disposable {
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     }
 
-    static createOrShow(extensionUri: vscode.Uri, backend: Backend, context: vscode.ExtensionContext): void {
-        if (GraphPanel.currentPanel) {
-            GraphPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
+    static createOrShow(extensionUri: vscode.Uri, backend: Backend, context: vscode.ExtensionContext, repoPath: string): void {
+        const existing = GraphPanel.panels.get(repoPath);
+        if (existing) {
+            existing.panel.reveal(vscode.ViewColumn.One);
             return;
         }
 
+        const repoName = path.basename(repoPath);
         const panel = vscode.window.createWebviewPanel(
             'gitGraphEnhanced',
-            'Git Graph',
+            `Git Graph — ${repoName}`,
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -62,36 +68,10 @@ export class GraphPanel implements vscode.Disposable {
             }
         );
 
-        GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, backend, context);
+        GraphPanel.panels.set(repoPath, new GraphPanel(panel, extensionUri, backend, context, repoPath));
     }
 
-    private async discoverRepoPath(): Promise<string | undefined> {
-        if (this.repoPath) { return this.repoPath; }
-
-        const folders = vscode.workspace.workspaceFolders;
-        if (!folders || folders.length === 0) { return undefined; }
-
-        const repoPaths: string[] = [];
-        for (const folder of folders) {
-            try {
-                await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, '.git'));
-                repoPaths.push(folder.uri.fsPath);
-            } catch {
-                // No .git in this folder
-            }
-        }
-
-        if (repoPaths.length === 0) { return undefined; }
-        if (repoPaths.length === 1) {
-            this.repoPath = repoPaths[0];
-            return this.repoPath;
-        }
-
-        const picked = await vscode.window.showQuickPick(
-            repoPaths.map(p => ({ label: p.split('/').pop() || p, description: p, path: p })),
-            { placeHolder: 'Select a repository' }
-        );
-        this.repoPath = picked?.path;
+    private getRepoPath(): string {
         return this.repoPath;
     }
 
@@ -177,13 +157,20 @@ export class GraphPanel implements vscode.Disposable {
                             await vscode.env.openExternal(vscode.Uri.parse(url));
                             break;
                         }
+                        case 'requestAvatar': {
+                            const { email } = msg.payload as { email: string };
+                            try {
+                                const dataUri = await fetchAvatarDataUri(email);
+                                this.postMessage('updateAvatars', { [email]: dataUri });
+                            } catch { /* best-effort */ }
+                            break;
+                        }
                         case 'openDiff':
                             await this.handleOpenDiff(msg.payload);
                             break;
                         case 'openFile': {
                             const p = msg.payload as { filePath: string; commitId?: string };
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath) { break; }
+                            const repoPath = this.getRepoPath();
                             if (p.commitId) {
                                 const uri = buildDiffUri(p.filePath, p.commitId, repoPath);
                                 await vscode.commands.executeCommand('vscode.open', uri);
@@ -211,8 +198,8 @@ export class GraphPanel implements vscode.Disposable {
                         }
                         case 'compareCommits': {
                             const p = msg.payload as { commitId1: string; commitId2: string; filePath?: string };
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath || !p.filePath) { break; }
+                            const repoPath = this.getRepoPath();
+                            if (!p.filePath) { break; }
                             const left = buildDiffUri(p.filePath, p.commitId1, repoPath);
                             const right = buildDiffUri(p.filePath, p.commitId2, repoPath);
                             await vscode.commands.executeCommand('vscode.diff', left, right,
@@ -221,16 +208,14 @@ export class GraphPanel implements vscode.Disposable {
                         }
                         case 'filterByAuthor': {
                             const p = msg.payload as { author: string };
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath) { break; }
+                            const repoPath = this.getRepoPath();
                             const result = await this.backend.request('search', { repoPath, query: p.author, type: 'author' });
                             this.postMessage('filterResults', result);
                             break;
                         }
                         case 'filterByTag': {
                             const { tagName } = msg.payload as { tagName: string };
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath) { break; }
+                            const repoPath = this.getRepoPath();
                             const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
                             const commitsResult = await this.backend.request('getCommits', { repoPath, maxCount, branch: tagName });
                             const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
@@ -251,8 +236,7 @@ export class GraphPanel implements vscode.Disposable {
                         }
                         case 'deleteBranches': {
                             const p = msg.payload as { branches: string[] };
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath) { break; }
+                            const repoPath = this.getRepoPath();
                             const confirm = await vscode.window.showWarningMessage(
                                 `Delete ${p.branches.length} branch(es): ${p.branches.join(', ')}?`,
                                 { modal: true }, 'Delete'
@@ -264,14 +248,30 @@ export class GraphPanel implements vscode.Disposable {
                             break;
                         }
                         case 'openTerminal': {
-                            const repoPath = await this.discoverRepoPath();
-                            if (!repoPath) { break; }
+                            const repoPath = this.getRepoPath();
                             vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
                             break;
                         }
-                        case 'abortOperation': {
-                            const repoPath = await this.discoverRepoPath();
+                        case 'createPr': {
+                            const { branchName } = msg.payload as { branchName: string };
+                            const repoPath = this.getRepoPath();
                             if (!repoPath) { break; }
+                            const result = await this.backend.request('getRemoteUrl', { repoPath }) as { url: string };
+                            const configProvider = getConfig('prProvider', 'auto');
+                            const provider = configProvider === 'auto'
+                                ? detectProvider(result.url)
+                                : configProvider;
+                            if (!provider) {
+                                vscode.window.showWarningMessage('Could not detect PR provider from remote URL');
+                                break;
+                            }
+                            const prUrl = buildPrUrl(result.url, branchName, provider);
+                            if (prUrl) {
+                                await vscode.env.openExternal(vscode.Uri.parse(prUrl));
+                            }
+                            break;
+                        }                        case 'abortOperation': {
+                            const repoPath = this.getRepoPath();
                             await this.backend.request('abortOperation', { repoPath });
                             await this.handleReady();
                             break;
@@ -288,11 +288,7 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     private async handleReady(): Promise<void> {
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) {
-            this.postMessage('error', { message: 'No git repository found in workspace' });
-            return;
-        }
+        const repoPath = this.getRepoPath();
 
         const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
         const showReflog = getConfig('showReflog', false);
@@ -349,11 +345,18 @@ export class GraphPanel implements vscode.Disposable {
         if (savedScroll) {
             this.postMessage('restoreScroll', { scrollTop: savedScroll });
         }
+
+        // Fetch avatars in background (non-blocking)
+        const emails = [...new Set(commits.commits.map(c => (c as unknown as { author: { email: string } }).author?.email).filter(Boolean))];
+        fetchAvatars(emails as string[]).then(avatarMap => {
+            if (Object.keys(avatarMap).length > 0) {
+                this.postMessage('updateAvatars', avatarMap);
+            }
+        }).catch(() => { /* avatar fetch is best-effort */ });
     }
 
     private async handleRequestCommits(payload: unknown): Promise<void> {
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) { return; }
+        const repoPath = this.getRepoPath();
         const p = payload as Record<string, unknown> | undefined;
         const sort = p?.order === 'topo' ? 'topo' : 'date';
         const result = await this.backend.request('getCommits', { repoPath, sort, ...p });
@@ -365,30 +368,26 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     private async handleRequestCommitDetail(payload: unknown): Promise<void> {
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) { return; }
+        const repoPath = this.getRepoPath();
         const result = await this.backend.request('getCommitDetail', { repoPath, ...(payload as object) });
         this.postMessage('updateCommitDetail', result);
     }
 
     private async handleRequestDiff(payload: unknown): Promise<void> {
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) { return; }
+        const repoPath = this.getRepoPath();
         const result = await this.backend.request('getDiff', { repoPath, ...(payload as object) });
         this.postMessage('updateDiff', result);
     }
 
     private async handleSearch(payload: unknown): Promise<void> {
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) { return; }
+        const repoPath = this.getRepoPath();
         const result = await this.backend.request('search', { repoPath, ...(payload as object) });
         this.postMessage('searchResults', result);
     }
 
     private async handleOpenDiff(payload: unknown): Promise<void> {
         const { filePath, commitId } = payload as { filePath: string; commitId: string };
-        const repoPath = await this.discoverRepoPath();
-        if (!repoPath) { return; }
+        const repoPath = this.getRepoPath();
 
         const commitResult = await this.backend.request('getCommitDetail', {
             repoPath, commitId,
@@ -403,8 +402,8 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     static triggerExport(): void {
-        if (GraphPanel.currentPanel) {
-            GraphPanel.currentPanel.postMessage('triggerExport');
+        for (const panel of GraphPanel.panels.values()) {
+            panel.postMessage('triggerExport');
         }
     }
 
@@ -413,10 +412,17 @@ export class GraphPanel implements vscode.Disposable {
     }
 
     dispose(): void {
-        GraphPanel.currentPanel = undefined;
+        GraphPanel.panels.delete(this.repoPath);
         for (const d of this.disposables) {
             d.dispose();
         }
         this.panel.dispose();
+    }
+
+    static disposeAll(): void {
+        for (const panel of GraphPanel.panels.values()) {
+            panel.dispose();
+        }
+        GraphPanel.panels.clear();
     }
 }

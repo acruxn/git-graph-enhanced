@@ -2,12 +2,52 @@ import * as vscode from 'vscode';
 import { Backend } from './backend';
 import { GraphPanel } from './webview-provider';
 
+async function discoverRepoPaths(): Promise<string[]> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) { return []; }
+    const paths: string[] = [];
+    for (const folder of folders) {
+        try {
+            await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, '.git'));
+            paths.push(folder.uri.fsPath);
+        } catch {
+            // No .git in this folder
+        }
+    }
+    return paths;
+}
+
+async function pickRepoPath(): Promise<string | undefined> {
+    const paths = await discoverRepoPaths();
+    if (paths.length === 0) { return undefined; }
+    if (paths.length === 1) { return paths[0]; }
+    const picked = await vscode.window.showQuickPick(
+        paths.map(p => ({ label: p.split('/').pop() || p, description: p, path: p })),
+        { placeHolder: 'Select a repository' }
+    );
+    return picked?.path;
+}
+
 export function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('gitGraphEnhanced.show', async () => {
             try {
+                const repoPath = await pickRepoPath();
+                if (!repoPath) { return; }
                 const backend = await Backend.create(context.extensionPath);
-                GraphPanel.createOrShow(context.extensionUri, backend, context);
+                GraphPanel.createOrShow(context.extensionUri, backend, context, repoPath);
+            } catch (err) {
+                vscode.window.showErrorMessage(`Git Graph Enhanced: ${err}`);
+            }
+        }),
+        vscode.commands.registerCommand('gitGraphEnhanced.showAll', async () => {
+            try {
+                const paths = await discoverRepoPaths();
+                if (paths.length === 0) { return; }
+                const backend = await Backend.create(context.extensionPath);
+                for (const repoPath of paths) {
+                    GraphPanel.createOrShow(context.extensionUri, backend, context, repoPath);
+                }
             } catch (err) {
                 vscode.window.showErrorMessage(`Git Graph Enhanced: ${err}`);
             }

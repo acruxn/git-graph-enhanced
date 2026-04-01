@@ -3,6 +3,7 @@ import { Backend } from './backend';
 import { registerCommands } from './commands';
 import { getConfig } from './config';
 import { GitContentProvider } from './diff-provider';
+import { GraphPanel } from './webview-provider';
 
 export const outputChannel = vscode.window.createOutputChannel('Git Graph Enhanced');
 
@@ -26,5 +27,6 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
+    GraphPanel.disposeAll();
     Backend.dispose();
 }
