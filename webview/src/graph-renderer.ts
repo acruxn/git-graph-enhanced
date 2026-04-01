@@ -94,6 +94,7 @@ export class GraphRenderer {
     private scrollRafId: number | null = null;
     private tooltipHideTimer: ReturnType<typeof setTimeout> | undefined;
     private activeContextMenu: HTMLElement | null = null;
+    private spacer: HTMLElement | null = null;
 
     constructor(canvas: HTMLCanvasElement, theme: ThemeManager) {
         this.ctx = canvas.getContext('2d')!;
@@ -256,15 +257,25 @@ export class GraphRenderer {
         const width = this.container.clientWidth;
         const totalHeight = this.commits.length * ROW_HEIGHT;
 
-        // CSS size: width = viewport, height = full scrollable content
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${Math.max(totalHeight, this.container.clientHeight)}px`;
+        // Spacer creates scrollable area
+        if (!this.spacer) {
+            this.spacer = document.createElement('div');
+            this.spacer.style.width = '1px';
+            this.spacer.style.pointerEvents = 'none';
+            this.container.appendChild(this.spacer);
+        }
+        this.spacer.style.height = `${totalHeight}px`;
 
-        // Backing store: only viewport size × DPR
+        // Canvas is fixed to viewport size, positioned at top
+        canvas.style.position = 'sticky';
+        canvas.style.top = '0';
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${this.container.clientHeight}px`;
+
+        // Backing store matches CSS size × DPR
         canvas.width = width * dpr;
         canvas.height = this.container.clientHeight * dpr;
 
-        // Reset transform before applying DPR scale
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.scale(dpr, dpr);
         this.scheduleRedraw();
