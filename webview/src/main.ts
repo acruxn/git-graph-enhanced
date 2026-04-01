@@ -18,7 +18,14 @@ renderer.setSend((type, payload) => messageHandler.send(type, payload));
 renderer.setOnFocusSearch(() => searchBar.focus());
 renderer.setOnCloseDetail(() => commitPanel.hide());
 commitPanel.setOnHide(() => renderer.setExpandedHeight(0));
-searchBar.setOnSearch((query, type) => messageHandler.send('search', { query, type }));
+commitPanel.setOnResize((h) => renderer.setExpandedHeight(h));
+searchBar.setOnSearch((query, type) => {
+    if (!query) {
+        renderer.setFilteredIndices(null);
+        return;
+    }
+    messageHandler.send('search', { query, type });
+});
 searchBar.setOnOrderChange((order) => messageHandler.send('requestCommits', { order }));
 searchBar.setOnAuthorFilter((author) => {
     if (author.length < 2) {
@@ -39,6 +46,10 @@ searchBar.setOnTagFilter((tagName) => {
 searchBar.setOnBranchGroupFilter((pattern) => {
     if (!pattern) {
         renderer.setFilteredIndices(null);
+        return;
+    }
+    if (pattern.startsWith('__branch__')) {
+        messageHandler.send('filterByTag', { tagName: pattern.slice('__branch__'.length) });
         return;
     }
     const branches = renderer.getAllBranches();

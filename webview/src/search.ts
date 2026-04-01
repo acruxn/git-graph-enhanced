@@ -158,6 +158,30 @@ export class SearchBar {
         }
     }
 
+    setBranches(branches: Array<{ name: string; isRemote: boolean }>): void {
+        const current = this.branchGroupSelect.value;
+        // Remove any previously added individual branches (after separator)
+        const sep = this.branchGroupSelect.querySelector('option[disabled]');
+        if (sep) {
+            while (sep.nextElementSibling) {
+                sep.nextElementSibling.remove();
+            }
+            sep.remove();
+        }
+        if (branches.length === 0) { return; }
+        const divider = document.createElement('option');
+        divider.disabled = true;
+        divider.textContent = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
+        this.branchGroupSelect.appendChild(divider);
+        for (const b of branches) {
+            const opt = document.createElement('option');
+            opt.value = `__branch__${b.name}`;
+            opt.textContent = b.name;
+            this.branchGroupSelect.appendChild(opt);
+        }
+        this.branchGroupSelect.value = current;
+    }
+
     setTags(tags: Array<{ name: string }>): void {
         const current = this.tagSelect.value;
         while (this.tagSelect.options.length > 1) {
@@ -191,7 +215,11 @@ export class SearchBar {
 
     private emitSearch(): void {
         const q = this.input.value.trim();
-        if (q.length < 2) { return; }
+        if (q.length < 2) {
+            this.resultsCount.textContent = '';
+            this.onSearch?.('', this.typeSelect.value);
+            return;
+        }
         this.onSearch?.(q, this.typeSelect.value);
     }
 }

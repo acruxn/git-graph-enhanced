@@ -34,9 +34,10 @@ export class MessageHandler {
     onMessage(msg: { type: string; payload?: unknown }): void {
         switch (msg.type) {
             case 'updateGraph': {
-                const payload = msg.payload as Parameters<GraphRenderer['render']>[0] & { tags?: Array<{ name: string }> };
+                const payload = msg.payload as Parameters<GraphRenderer['render']>[0] & { tags?: Array<{ name: string }>; branches?: Array<{ name: string; isRemote: boolean }> };
                 this.renderer.render(payload);
                 if (payload.tags) { this.searchBar.setTags(payload.tags); }
+                if (payload.branches) { this.searchBar.setBranches(payload.branches); }
                 break;
             }
             case 'updateCommitDetail': {
@@ -45,9 +46,18 @@ export class MessageHandler {
                 this.renderer.setExpandedHeight(this.commitPanel.height);
                 break;
             }
-            case 'searchResults':
-                this.searchBar.showResultsCount((msg.payload as SearchResultsPayload).results.length);
+            case 'searchResults': {
+                const p = msg.payload as SearchResultsPayload;
+                this.searchBar.showResultsCount(p.results.length);
+                const matchIds = new Set(p.results.map((r: { commit?: { id?: string } }) => r.commit?.id).filter(Boolean));
+                const commits = this.renderer.getCommits();
+                const indices: number[] = [];
+                for (let i = 0; i < commits.length; i++) {
+                    if (matchIds.has(commits[i].id)) { indices.push(i); }
+                }
+                this.renderer.setFilteredIndices(indices.length > 0 ? indices : null);
                 break;
+            }
             case 'filterResults': {
                 const p = msg.payload as { matchingIndices: number[] };
                 this.renderer.setFilteredIndices(p.matchingIndices);
