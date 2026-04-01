@@ -66,7 +66,7 @@ Post-v1.0, roughly prioritized within each category.
 - [ ] Branch color on commit dots/rows, not just graph lines (#2)
 - [ ] Branch line highlighting on click — thicken/highlight full path (#3)
 - [ ] Muted merge commits / non-ancestor commits — visual de-emphasis (#4)
-- [ ] Configurable commit ordering — topological, date, author-date sort (#5)
+- [x] Configurable commit ordering — topological, date, author-date sort (#5)
 - [ ] Configurable column visibility — show/hide and resize Date, Author, Commit (#6)
 - [ ] Sticky column headers — keep headers visible while scrolling (#7)
 - [ ] Markdown rendering in commit messages — bold, italics, inline code (#8)
@@ -75,7 +75,7 @@ Post-v1.0, roughly prioritized within each category.
 
 ### Search & Filtering
 
-- [ ] Dedicated author filter — hide non-matching commits from graph (#11)
+- [x] Dedicated author filter — hide non-matching commits from graph (#11)
 - [ ] Filter by tags — show only tagged commits or commits between tags (#12)
 - [ ] Reflog inclusion — option to show reflog-only commits (#14)
 
@@ -85,9 +85,9 @@ Post-v1.0, roughly prioritized within each category.
 - [ ] Fixup/squash commit creation + autosquash (#16)
 - [ ] Interactive rebase via VS Code editor — rebase todo in editor tab (#17)
 - [ ] Merge/rebase/cherry-pick --abort from graph (#18)
-- [ ] Commit comparison view — CTRL+click two commits to diff (#19)
+- [x] Commit comparison view — CTRL+click two commits to diff (#19)
 - [ ] Open file at specific revision (#20)
-- [ ] Commit signature/GPG verification indicator (#21)
+- [~] Commit signature/GPG verification indicator (#21)
 
 ### Branch Operations
 

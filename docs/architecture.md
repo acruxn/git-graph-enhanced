@@ -123,7 +123,7 @@ Methods:
 | `getGraph` | Pre-computed graph layout (nodes + edges) |
 | `getBranches` | All branches + HEAD indicator |
 | `getTags` | All tags |
-| `getCommitDetail` | Full commit with changed files |
+| `getCommitDetail` | Full commit with changed files (includes optional `gpgStatus`) |
 | `getDiff` | Diff for a commit or specific file |
 | `search` | Search by message, author, or hash |
 
