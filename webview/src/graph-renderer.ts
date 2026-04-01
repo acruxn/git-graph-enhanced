@@ -65,6 +65,21 @@ const BADGE_PAD = 6;
 const BADGE_GAP = 4;
 const BADGE_RADIUS = 3;
 const HEADER_HEIGHT = 20;
+const AVATAR_RADIUS = 8;
+
+const AVATAR_COLORS = ['#e06c75', '#61afef', '#98c379', '#d19a66', '#c678dd', '#56b6c2', '#e5c07b', '#be5046'];
+
+function getAuthorInitials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) { return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase(); }
+    return name.slice(0, 2).toUpperCase();
+}
+
+function getAuthorColor(name: string): string {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) { hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0; }
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 export class GraphRenderer {
     private readonly ctx: CanvasRenderingContext2D;
@@ -75,6 +90,7 @@ export class GraphRenderer {
     private readonly stateBanner: HTMLElement;
     private send: SendFn = () => {};
     private onFocusSearch: (() => void) | null = null;
+    private onCloseDetail: (() => void) | null = null;
     private config: { showDate: boolean; showAuthor: boolean; graphStyle: 'curved' | 'angular' | 'straight'; accessibilityMode: boolean } = { showDate: true, showAuthor: true, graphStyle: 'curved', accessibilityMode: false };
 
     private commits: Commit[] = [];
@@ -140,8 +156,16 @@ export class GraphRenderer {
         this.onFocusSearch = fn;
     }
 
+    setOnCloseDetail(fn: () => void): void {
+        this.onCloseDetail = fn;
+    }
+
     exportAsDataUrl(): string {
         return this.ctx.canvas.toDataURL('image/png');
+    }
+
+    getSelectedRowTop(): number {
+        return this.selectedIndex >= 0 ? this.selectedIndex * ROW_HEIGHT : 0;
     }
 
     setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight'; accessibilityMode?: boolean }): void {
@@ -481,7 +505,7 @@ export class GraphRenderer {
                 this.closeContextMenu();
                 this.selectedIndex = -1;
                 this.highlightedBranch.clear();
-                this.send('closeCommitDetail');
+                this.onCloseDetail?.();
                 this.scheduleRedraw();
                 return;
             case 's':
@@ -718,9 +742,23 @@ export class GraphRenderer {
             // Author
             if (this.config.showAuthor) {
                 ctx.globalAlpha = isMerge ? 0.4 : 0.7;
-                ctx.font = '12px system-ui, -apple-system, sans-serif';
                 if (x < width - 100) {
-                    ctx.fillText(commit.author.name, x, y + 4);
+                    // Avatar circle
+                    const avatarColor = getAuthorColor(commit.author.name);
+                    ctx.fillStyle = avatarColor;
+                    ctx.beginPath();
+                    ctx.arc(x + AVATAR_RADIUS, y, AVATAR_RADIUS, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Initials
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+                    const initials = getAuthorInitials(commit.author.name);
+                    const tw = ctx.measureText(initials).width;
+                    ctx.fillText(initials, x + AVATAR_RADIUS - tw / 2, y + 3);
+                    // Name
+                    ctx.fillStyle = fg;
+                    ctx.font = '12px system-ui, -apple-system, sans-serif';
+                    ctx.fillText(commit.author.name, x + AVATAR_RADIUS * 2 + 6, y + 4);
                 }
             }
             ctx.globalAlpha = 1;
