@@ -35,6 +35,7 @@ export class GraphPanel implements vscode.Disposable {
                     showDate: getConfig('showDateColumn', true),
                     showAuthor: getConfig('showAuthorColumn', true),
                     graphStyle: getConfig('graphStyle', 'curved'),
+                    issueLinks: getConfig('issueLinking', {}),
                 });
             }
         }, null, this.disposables);
@@ -169,6 +170,11 @@ export class GraphPanel implements vscode.Disposable {
                         case 'copyToClipboard':
                             await vscode.env.clipboard.writeText((msg.payload as { text: string }).text);
                             break;
+                        case 'openExternal': {
+                            const url = (msg.payload as { url: string }).url;
+                            await vscode.env.openExternal(vscode.Uri.parse(url));
+                            break;
+                        }
                         case 'openDiff':
                             await this.handleOpenDiff(msg.payload);
                             break;
@@ -188,6 +194,19 @@ export class GraphPanel implements vscode.Disposable {
                         case 'saveScrollPosition':
                             this.context.workspaceState.update('graphScrollTop', (msg.payload as { scrollTop: number }).scrollTop);
                             break;
+                        case 'exportGraph': {
+                            const { dataUrl } = msg.payload as { dataUrl: string };
+                            const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
+                            const uri = await vscode.window.showSaveDialog({
+                                defaultUri: vscode.Uri.file('git-graph.png'),
+                                filters: { 'PNG Image': ['png'] },
+                            });
+                            if (uri) {
+                                await vscode.workspace.fs.writeFile(uri, buffer);
+                                vscode.window.showInformationMessage(`Graph exported to ${uri.fsPath}`);
+                            }
+                            break;
+                        }
                         case 'compareCommits': {
                             const p = msg.payload as { commitId1: string; commitId2: string; filePath?: string };
                             const repoPath = await this.discoverRepoPath();
@@ -204,6 +223,26 @@ export class GraphPanel implements vscode.Disposable {
                             if (!repoPath) { break; }
                             const result = await this.backend.request('search', { repoPath, query: p.author, type: 'author' });
                             this.postMessage('filterResults', result);
+                            break;
+                        }
+                        case 'deleteBranches': {
+                            const p = msg.payload as { branches: string[] };
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            const confirm = await vscode.window.showWarningMessage(
+                                `Delete ${p.branches.length} branch(es): ${p.branches.join(', ')}?`,
+                                { modal: true }, 'Delete'
+                            );
+                            if (confirm !== 'Delete') { break; }
+                            const delResult = await this.backend.request('deleteBranches', { repoPath, branches: p.branches });
+                            this.postMessage('branchesDeleted', delResult);
+                            await this.handleReady();
+                            break;
+                        }
+                        case 'openTerminal': {
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
                             break;
                         }
                     }
@@ -255,6 +294,7 @@ export class GraphPanel implements vscode.Disposable {
         this.postMessage('updateConfig', {
             showDate: getConfig('showDateColumn', true),
             showAuthor: getConfig('showAuthorColumn', true),
+            issueLinks: getConfig('issueLinking', {}),
         });
 
         const savedScroll = this.context.workspaceState.get<number>('graphScrollTop', 0);
@@ -312,6 +352,12 @@ export class GraphPanel implements vscode.Disposable {
         const left = buildDiffUri(filePath, parentId, repoPath);
         const right = buildDiffUri(filePath, commitId, repoPath);
         await vscode.commands.executeCommand('vscode.diff', left, right, `${filePath} (${commitId.slice(0, 7)})`);
+    }
+
+    static triggerExport(): void {
+        if (GraphPanel.currentPanel) {
+            GraphPanel.currentPanel.postMessage('triggerExport');
+        }
     }
 
     private postMessage(type: string, payload?: unknown): void {
