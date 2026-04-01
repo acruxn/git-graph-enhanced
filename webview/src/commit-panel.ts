@@ -26,6 +26,12 @@ export interface CommitDetailData {
     files: FileDiff[];
 }
 
+interface TreeNode {
+    name: string;
+    children: Map<string, TreeNode>;
+    files: Array<FileDiff & { name: string }>;
+}
+
 export class CommitPanel {
     private readonly container: HTMLElement;
     private readonly graphContainer: HTMLElement;
@@ -149,24 +155,8 @@ export class CommitPanel {
             heading.className = 'inline-detail-label';
             heading.textContent = `Changed files (${data.files.length})`;
             right.appendChild(heading);
-            const fileList = document.createElement('ul');
-            fileList.className = 'commit-panel-files';
-            for (const file of data.files) {
-                const li = document.createElement('li');
-                const status = document.createElement('span');
-                status.className = `file-status file-status-${file.status}`;
-                status.textContent = this.accessibilityMode
-                    ? ({ added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[file.status] ?? file.status)
-                    : file.status[0].toUpperCase();
-                li.appendChild(status);
-                const btn = document.createElement('button');
-                btn.className = 'file-link';
-                btn.textContent = file.path;
-                btn.addEventListener('click', () => this.onFileClick?.(file.path, data.commit.id));
-                li.appendChild(btn);
-                fileList.appendChild(li);
-            }
-            right.appendChild(fileList);
+            const tree = this.buildFileTree(data.files);
+            right.appendChild(this.renderTree(tree, data.commit.id));
             layout.appendChild(right);
         }
 
@@ -207,7 +197,7 @@ export class CommitPanel {
     }
 
     get height(): number {
-        return this.visible ? this.container.offsetHeight : 0;
+        return this.visible ? Math.max(this.container.offsetHeight, 200) : 0;
     }
 
     get anchorTop(): number {
@@ -293,5 +283,74 @@ export class CommitPanel {
             }
             container.appendChild(p);
         }
+    }
+
+    private buildFileTree(files: FileDiff[]): TreeNode {
+        const root: TreeNode = { name: '', children: new Map(), files: [] };
+        for (const file of files) {
+            const parts = file.path.split('/');
+            let node = root;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!node.children.has(parts[i])) {
+                    node.children.set(parts[i], { name: parts[i], children: new Map(), files: [] });
+                }
+                node = node.children.get(parts[i])!;
+            }
+            node.files.push({ ...file, name: parts[parts.length - 1] });
+        }
+        return root;
+    }
+
+    private countFiles(node: TreeNode): number {
+        let count = node.files.length;
+        for (const child of node.children.values()) {
+            count += this.countFiles(child);
+        }
+        return count;
+    }
+
+    private renderTree(node: TreeNode, commitId: string): HTMLElement {
+        const ul = document.createElement('ul');
+        ul.className = 'commit-panel-files';
+
+        for (const [, child] of [...node.children.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+            // Collapse single-child folder chains
+            let collapsed = child;
+            let prefix = collapsed.name;
+            while (collapsed.children.size === 1 && collapsed.files.length === 0) {
+                const only = [...collapsed.children.values()][0];
+                prefix += '/' + only.name;
+                collapsed = only;
+            }
+
+            const li = document.createElement('li');
+            const details = document.createElement('details');
+            details.open = true;
+            const summary = document.createElement('summary');
+            const count = this.countFiles(collapsed);
+            summary.textContent = `${prefix}/ (${count} file${count !== 1 ? 's' : ''})`;
+            details.appendChild(summary);
+            details.appendChild(this.renderTree(collapsed, commitId));
+            li.appendChild(details);
+            ul.appendChild(li);
+        }
+
+        for (const file of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
+            const li = document.createElement('li');
+            const status = document.createElement('span');
+            status.className = `file-status file-status-${file.status}`;
+            status.textContent = this.accessibilityMode
+                ? ({ added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[file.status] ?? file.status)
+                : file.status[0].toUpperCase();
+            li.appendChild(status);
+            const btn = document.createElement('button');
+            btn.className = 'file-link';
+            btn.textContent = file.name;
+            btn.addEventListener('click', () => this.onFileClick?.(file.path, commitId));
+            li.appendChild(btn);
+            ul.appendChild(li);
+        }
+
+        return ul;
     }
 }

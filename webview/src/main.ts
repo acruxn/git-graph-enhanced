@@ -17,6 +17,7 @@ const messageHandler = new MessageHandler(vscode, renderer, commitPanel, searchB
 renderer.setSend((type, payload) => messageHandler.send(type, payload));
 renderer.setOnFocusSearch(() => searchBar.focus());
 renderer.setOnCloseDetail(() => commitPanel.hide());
+commitPanel.setOnHide(() => renderer.setExpandedHeight(0));
 searchBar.setOnSearch((query, type) => messageHandler.send('search', { query, type }));
 searchBar.setOnOrderChange((order) => messageHandler.send('requestCommits', { order }));
 searchBar.setOnAuthorFilter((author) => {
@@ -60,6 +61,7 @@ searchBar.setOnBranchGroupFilter((pattern) => {
 
 commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
 commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
+searchBar.setOnSortDirection((dir) => messageHandler.send('requestCommits', { sortDirection: dir }));
 
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
     if (e.data.type === 'themeChanged') {

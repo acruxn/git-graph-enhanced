@@ -1,4 +1,4 @@
-import { GraphRenderer } from './graph-renderer';
+import { GraphRenderer, ROW_HEIGHT } from './graph-renderer';
 import { CommitPanel } from './commit-panel';
 import { SearchBar } from './search';
 import type { CommitDetailData } from './commit-panel';
@@ -40,8 +40,9 @@ export class MessageHandler {
                 break;
             }
             case 'updateCommitDetail': {
-                const y = this.renderer.getSelectedRowTop() + 24;
+                const y = this.renderer.getSelectedRowTop() + ROW_HEIGHT;
                 this.commitPanel.showInline(msg.payload as CommitDetailData, y);
+                this.renderer.setExpandedHeight(this.commitPanel.height);
                 break;
             }
             case 'searchResults':
