@@ -14,6 +14,14 @@ interface PendingRequest {
 const MAX_RESTARTS = 3;
 const RESTART_WINDOW_MS = 60_000;
 
+export function parseLines(buffer: string, incoming: string): { lines: string[]; remaining: string } {
+    const combined = buffer + incoming;
+    const parts = combined.split('\n');
+    const remaining = parts.pop()!;
+    const lines = parts.filter(l => l.trim() !== '');
+    return { lines, remaining };
+}
+
 export class Backend {
     private static _instance: Backend | null = null;
     private static _shuttingDown = false;
@@ -47,13 +55,9 @@ export class Backend {
         });
 
         backend.process.stdout!.on('data', (chunk: Buffer) => {
-            backend.stdoutBuffer += chunk.toString();
-            const lines = backend.stdoutBuffer.split('\n');
-            backend.stdoutBuffer = lines.pop()!;
+            const { lines, remaining } = parseLines(backend.stdoutBuffer, chunk.toString());
+            backend.stdoutBuffer = remaining;
             for (const line of lines) {
-                if (!line.trim()) {
-                    continue;
-                }
                 backend.handleResponse(line);
             }
         });
