@@ -27,6 +27,7 @@ searchBar.setOnAuthorFilter((author) => {
 });
 
 commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
+commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
 
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
     if (e.data.type === 'themeChanged') {
