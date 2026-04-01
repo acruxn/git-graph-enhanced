@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import type { JsonRpcRequest, JsonRpcResponse } from './types';
 import { getConfig, CONFIG_REQUEST_TIMEOUT } from './config';
 import { outputChannel } from './extension';
+import { getGitEnv, handleCredentialRequest } from './askpass';
 
 interface PendingRequest {
     resolve: (value: unknown) => void;
@@ -52,6 +53,7 @@ export class Backend {
 
         backend.process = spawn(binaryPath, [], {
             stdio: ['pipe', 'pipe', 'pipe'],
+            env: { ...process.env, ...getGitEnv(extensionPath) },
         });
 
         backend.process.stdout!.on('data', (chunk: Buffer) => {
@@ -123,14 +125,21 @@ export class Backend {
     }
 
     private handleResponse(line: string): void {
-        let response: JsonRpcResponse;
+        let parsed: Record<string, unknown>;
         try {
-            response = JSON.parse(line) as JsonRpcResponse;
+            parsed = JSON.parse(line) as Record<string, unknown>;
         } catch {
             outputChannel.appendLine(`[backend] malformed response: ${line}`);
             return;
         }
 
+        // JSON-RPC notification (no id) — e.g. credential requests
+        if (!('id' in parsed)) {
+            this.handleNotification(parsed);
+            return;
+        }
+
+        const response = parsed as unknown as JsonRpcResponse;
         const pending = this.pending.get(response.id);
         if (!pending) {
             return;
@@ -142,6 +151,22 @@ export class Backend {
             pending.reject(new Error(response.error.message));
         } else {
             pending.resolve(response.result);
+        }
+    }
+
+    private handleNotification(msg: Record<string, unknown>): void {
+        const method = msg.method as string | undefined;
+        if (method === 'credentialRequest') {
+            const params = msg.params as { prompt: string } | undefined;
+            handleCredentialRequest(params?.prompt ?? 'Enter passphrase').then((response) => {
+                if (this.process?.stdin?.writable) {
+                    this.process.stdin.write(JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'credentialResponse',
+                        params: { value: response ?? '' },
+                    }) + '\n');
+                }
+            });
         }
     }
 
