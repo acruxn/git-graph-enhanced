@@ -56,7 +56,7 @@ export class MessageHandler {
                 this.showError(msg.payload as ErrorPayload);
                 break;
             case 'updateConfig':
-                this.renderer.setConfig(msg.payload as { showDate: boolean; showAuthor: boolean });
+                this.renderer.setConfig(msg.payload as { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' });
                 break;
             case 'themeChanged':
                 break;
