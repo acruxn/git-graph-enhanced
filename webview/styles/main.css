@@ -109,6 +109,14 @@ body {
     color: var(--vscode-descriptionForeground);
     font-size: 12px;
     margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.commit-panel-avatar {
+    border-radius: 50%;
+    vertical-align: middle;
 }
 
 .commit-panel-signature {

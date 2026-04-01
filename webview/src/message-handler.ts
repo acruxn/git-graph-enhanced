@@ -72,6 +72,9 @@ export class MessageHandler {
                 this.vscode.postMessage({ type: 'exportGraph', payload: { dataUrl } });
                 break;
             }
+            case 'updateAvatars':
+                this.commitPanel.setAvatars(msg.payload as Record<string, string>);
+                break;
             case 'themeChanged':
                 break;
         }

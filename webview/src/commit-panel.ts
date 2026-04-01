@@ -33,6 +33,7 @@ export class CommitPanel {
     private issueLinks: Record<string, string> = {};
     private onOpenExternal: ((url: string) => void) | null = null;
     private accessibilityMode = false;
+    private avatars = new Map<string, string>();
 
     constructor() {
         this.container = document.createElement('div');
@@ -81,7 +82,17 @@ export class CommitPanel {
         // Author + date
         const meta = document.createElement('div');
         meta.className = 'commit-panel-meta';
-        meta.textContent = `${data.commit.author.name} <${data.commit.author.email}> \u00b7 ${new Date(data.commit.timestamp * 1000).toLocaleString()}`;
+        const avatarUri = this.avatars.get(data.commit.author.email);
+        if (avatarUri) {
+            const img = document.createElement('img');
+            img.src = avatarUri;
+            img.width = 16;
+            img.height = 16;
+            img.className = 'commit-panel-avatar';
+            img.alt = '';
+            meta.appendChild(img);
+        }
+        meta.appendChild(document.createTextNode(`${data.commit.author.name} <${data.commit.author.email}> \u00b7 ${new Date(data.commit.timestamp * 1000).toLocaleString()}`));
         this.container.appendChild(meta);
 
         // GPG signature indicator
@@ -136,6 +147,12 @@ export class CommitPanel {
     setConfig(cfg: { issueLinks?: Record<string, string>; accessibilityMode?: boolean }): void {
         if (cfg.issueLinks) { this.issueLinks = cfg.issueLinks; }
         if (cfg.accessibilityMode !== undefined) { this.accessibilityMode = cfg.accessibilityMode; }
+    }
+
+    setAvatars(map: Record<string, string>): void {
+        for (const [email, uri] of Object.entries(map)) {
+            this.avatars.set(email, uri);
+        }
     }
 
     get isVisible(): boolean {
