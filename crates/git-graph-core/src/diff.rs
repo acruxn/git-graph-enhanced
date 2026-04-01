@@ -49,6 +49,20 @@ pub fn get_commit_detail(repo_path: &Path, commit_id: &str) -> CoreResult<(Commi
         None => (msg.to_owned(), String::new()),
     };
 
+    let has_gpgsig = decoded
+        .extra_headers
+        .iter()
+        .any(|(name, _)| *name == "gpgsig");
+
+    let (gpg_status, gpg_signer) = if has_gpgsig {
+        (
+            Some("signed".to_owned()),
+            Some(author_sig.email.to_string()),
+        )
+    } else {
+        (Some("none".to_owned()), None)
+    };
+
     let commit = Commit {
         id: hex,
         short_id: short,
@@ -64,6 +78,8 @@ pub fn get_commit_detail(repo_path: &Path, commit_id: &str) -> CoreResult<(Commi
         },
         parent_ids: decoded.parents().map(|p| p.to_string()).collect(),
         timestamp,
+        gpg_status,
+        gpg_signer,
     };
 
     // Diff against first parent (or empty tree for root commits)
