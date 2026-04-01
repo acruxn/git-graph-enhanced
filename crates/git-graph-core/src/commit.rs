@@ -112,3 +112,87 @@ pub fn list_commits(
     commits.truncate(max_count);
     Ok((commits, has_more))
 }
+
+pub fn list_reflog(repo_path: &Path, max_count: usize) -> CoreResult<Vec<Commit>> {
+    let repo = open_repo(repo_path)?;
+    let mailmap = repo.open_mailmap();
+    let head_ref = repo
+        .find_reference("HEAD")
+        .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+    let mut log_platform = head_ref.log_iter();
+    let log = log_platform
+        .all()
+        .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+
+    let Some(log) = log else {
+        return Ok(Vec::new());
+    };
+
+    let mut commits = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for entry in log.take(max_count) {
+        let entry = entry.map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+        let oid = match gix::ObjectId::from_hex(entry.new_oid.as_ref()) {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+        if !seen.insert(oid) {
+            continue;
+        }
+        let object = match repo.find_object(oid) {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
+        let commit_obj = object.into_commit();
+        let decoded = match commit_obj.decode() {
+            Ok(d) => d,
+            Err(_) => continue,
+        };
+
+        let author_sig = match decoded.author() {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let committer_sig = match decoded.committer() {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let timestamp = committer_sig.time().map(|t| t.seconds).unwrap_or(0);
+
+        let hex = oid.to_string();
+        let short = hex[..7.min(hex.len())].to_string();
+
+        let msg: &str = std::str::from_utf8(decoded.message).unwrap_or("");
+        let (message, body) = match msg.split_once('\n') {
+            Some((first, rest)) => (first.to_owned(), rest.trim().to_owned()),
+            None => (msg.to_owned(), String::new()),
+        };
+
+        commits.push(Commit {
+            id: hex,
+            short_id: short,
+            message,
+            body,
+            author: {
+                let resolved = mailmap.resolve_cow(author_sig);
+                Author {
+                    name: resolved.name.to_string(),
+                    email: resolved.email.to_string(),
+                }
+            },
+            committer: {
+                let resolved = mailmap.resolve_cow(committer_sig);
+                Author {
+                    name: resolved.name.to_string(),
+                    email: resolved.email.to_string(),
+                }
+            },
+            parent_ids: decoded.parents().map(|p| p.to_string()).collect(),
+            timestamp,
+            gpg_status: None,
+            gpg_signer: None,
+        });
+    }
+
+    Ok(commits)
+}

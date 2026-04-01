@@ -36,6 +36,8 @@ export class GraphPanel implements vscode.Disposable {
                     showAuthor: getConfig('showAuthorColumn', true),
                     graphStyle: getConfig('graphStyle', 'curved'),
                     issueLinks: getConfig('issueLinking', {}),
+                    accessibilityMode: getConfig('accessibilityMode', false),
+                    branchGroups: getConfig('branchGroups', []),
                 });
             }
         }, null, this.disposables);
@@ -225,6 +227,28 @@ export class GraphPanel implements vscode.Disposable {
                             this.postMessage('filterResults', result);
                             break;
                         }
+                        case 'filterByTag': {
+                            const { tagName } = msg.payload as { tagName: string };
+                            const repoPath = await this.discoverRepoPath();
+                            if (!repoPath) { break; }
+                            const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
+                            const commitsResult = await this.backend.request('getCommits', { repoPath, maxCount, branch: tagName });
+                            const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
+                            const graphResult = await this.backend.request('getGraph', {
+                                commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
+                            });
+                            const [branchesResult, tagsResult] = await Promise.all([
+                                this.backend.request('getBranches', { repoPath }),
+                                this.backend.request('getTags', { repoPath }),
+                            ]);
+                            this.postMessage('updateGraph', {
+                                ...commits,
+                                ...(graphResult as object),
+                                ...(branchesResult as object),
+                                ...(tagsResult as object),
+                            });
+                            break;
+                        }
                         case 'deleteBranches': {
                             const p = msg.payload as { branches: string[] };
                             const repoPath = await this.discoverRepoPath();
@@ -264,6 +288,7 @@ export class GraphPanel implements vscode.Disposable {
         }
 
         const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
+        const showReflog = getConfig('showReflog', false);
 
         const [commitsResult, branchesResult, tagsResult, stashesResult] = await Promise.all([
             this.backend.request('getCommits', { repoPath, maxCount }),
@@ -273,6 +298,18 @@ export class GraphPanel implements vscode.Disposable {
         ]);
 
         const commits = commitsResult as { commits: Array<{ id: string; parentIds: string[] }>; hasMore: boolean };
+
+        if (showReflog) {
+            const reflogResult = await this.backend.request('getReflog', { repoPath, maxCount });
+            const reflogCommits = (reflogResult as { commits: Array<{ id: string; parentIds: string[] }> }).commits;
+            const seen = new Set(commits.commits.map(c => c.id));
+            for (const c of reflogCommits) {
+                if (!seen.has(c.id)) {
+                    seen.add(c.id);
+                    commits.commits.push(c);
+                }
+            }
+        }
 
         const branches = (branchesResult as { branches: Array<{ name: string; commitId: string; isHead: boolean }> }).branches;
         const mainBranch = branches.find(b => b.name === 'main' || b.name === 'master');
@@ -295,6 +332,8 @@ export class GraphPanel implements vscode.Disposable {
             showDate: getConfig('showDateColumn', true),
             showAuthor: getConfig('showAuthorColumn', true),
             issueLinks: getConfig('issueLinking', {}),
+            accessibilityMode: getConfig('accessibilityMode', false),
+            branchGroups: getConfig('branchGroups', []),
         });
 
         const savedScroll = this.context.workspaceState.get<number>('graphScrollTop', 0);
