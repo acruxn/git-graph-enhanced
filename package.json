@@ -34,6 +34,16 @@
         "command": "gitGraphEnhanced.show",
         "title": "Show Git Graph",
         "category": "Git Graph Enhanced"
+      },
+      {
+        "command": "gitGraphEnhanced.export",
+        "title": "Export Graph as Image",
+        "category": "Git Graph Enhanced"
+      },
+      {
+        "command": "gitGraphEnhanced.openTerminal",
+        "title": "Open Terminal at Repository",
+        "category": "Git Graph Enhanced"
       }
     ],
     "configuration": {
@@ -80,6 +90,12 @@
           "default": "curved",
           "enum": ["curved", "angular", "straight"],
           "description": "Graph edge style: curved (bezier), angular (right-angle), or straight lines"
+        },
+        "gitGraphEnhanced.issueLinking": {
+          "type": "object",
+          "default": {},
+          "description": "Regex-to-URL mapping for issue linking. Example: { \"#(\\\\d+)\": \"https://github.com/owner/repo/issues/$1\" }",
+          "additionalProperties": { "type": "string" }
         }
       }
     }
