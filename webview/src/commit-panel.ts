@@ -104,7 +104,7 @@ export class CommitPanel {
         }
 
         // Changed files
-        if (data.files.length > 0) {
+        if (data.files && data.files.length > 0) {
             const fileList = document.createElement('ul');
             fileList.className = 'commit-panel-files';
             for (const file of data.files) {
