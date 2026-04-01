@@ -760,50 +760,57 @@ export class GraphRenderer {
             let x = textLeft;
             x = this.drawBadges(ctx, commit.id, x, y, colors);
 
+            const shaCol = x;
+            const messageCol = shaCol + 80;
+            const authorCol = width - 280;
+            const dateCol = width - 120;
+
             // Short SHA
             ctx.fillStyle = fg;
             ctx.globalAlpha = 0.7;
             ctx.font = '12px Menlo, Consolas, monospace';
-            ctx.fillText(commit.shortId, x, y + 4);
-            x += ctx.measureText(commit.shortId).width + 10;
+            ctx.fillText(commit.shortId, shaCol, y + 4);
 
-            // Message
+            // Message (truncate with ellipsis if overlapping author/date column)
             ctx.globalAlpha = isMerge ? 0.5 : 1;
             ctx.font = '13px system-ui, -apple-system, sans-serif';
             const displayMsg = replaceEmoji(commit.message);
-            ctx.fillText(displayMsg, x, y + 4);
-            x += ctx.measureText(displayMsg).width + 14;
-
-            // Date
-            if (this.config.showDate) {
-                ctx.globalAlpha = 0.7;
-                ctx.font = '12px system-ui, -apple-system, sans-serif';
-                const date = new Date(commit.timestamp * 1000).toLocaleDateString();
-                ctx.fillText(date, x, y + 4);
-                x += ctx.measureText(date).width + 14;
+            const msgMaxWidth = (this.config.showAuthor ? authorCol : this.config.showDate ? dateCol : width) - messageCol - 10;
+            if (msgMaxWidth > 0) {
+                let msg = displayMsg;
+                if (ctx.measureText(msg).width > msgMaxWidth) {
+                    while (msg.length > 0 && ctx.measureText(msg + '…').width > msgMaxWidth) { msg = msg.slice(0, -1); }
+                    msg += '…';
+                }
+                ctx.fillText(msg, messageCol, y + 4);
             }
 
             // Author
             if (this.config.showAuthor) {
                 ctx.globalAlpha = isMerge ? 0.4 : 0.7;
-                if (x < width - 100) {
-                    // Avatar circle
-                    const avatarColor = getAuthorColor(commit.author.name);
-                    ctx.fillStyle = avatarColor;
-                    ctx.beginPath();
-                    ctx.arc(x + AVATAR_RADIUS, y, AVATAR_RADIUS, 0, Math.PI * 2);
-                    ctx.fill();
-                    // Initials
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-                    const initials = getAuthorInitials(commit.author.name);
-                    const tw = ctx.measureText(initials).width;
-                    ctx.fillText(initials, x + AVATAR_RADIUS - tw / 2, y + 3);
-                    // Name
-                    ctx.fillStyle = fg;
-                    ctx.font = '12px system-ui, -apple-system, sans-serif';
-                    ctx.fillText(commit.author.name, x + AVATAR_RADIUS * 2 + 6, y + 4);
-                }
+                // Avatar circle
+                const avatarColor = getAuthorColor(commit.author.name);
+                ctx.fillStyle = avatarColor;
+                ctx.beginPath();
+                ctx.arc(authorCol + AVATAR_RADIUS, y, AVATAR_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                // Initials
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+                const initials = getAuthorInitials(commit.author.name);
+                const tw = ctx.measureText(initials).width;
+                ctx.fillText(initials, authorCol + AVATAR_RADIUS - tw / 2, y + 3);
+                // Name
+                ctx.fillStyle = fg;
+                ctx.font = '12px system-ui, -apple-system, sans-serif';
+                ctx.fillText(commit.author.name, authorCol + AVATAR_RADIUS * 2 + 6, y + 4);
+            }
+
+            // Date
+            if (this.config.showDate) {
+                ctx.globalAlpha = 0.7;
+                ctx.font = '12px system-ui, -apple-system, sans-serif';
+                ctx.fillText(new Date(commit.timestamp * 1000).toLocaleDateString(), dateCol, y + 4);
             }
             ctx.globalAlpha = 1;
         }
@@ -824,17 +831,22 @@ export class GraphRenderer {
         ctx.lineTo(width, HEADER_HEIGHT);
         ctx.stroke();
 
+        const shaCol = this.textLeft;
+        const messageCol = shaCol + 80;
+        const authorCol = width - 280;
+        const dateCol = width - 120;
+
         ctx.fillStyle = theme.foreground;
         ctx.globalAlpha = 0.6;
         ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
         ctx.fillText('Graph', GRAPH_LEFT, HEADER_HEIGHT - 6);
-        ctx.fillText('SHA', this.textLeft, HEADER_HEIGHT - 6);
-        ctx.fillText('Message', this.textLeft + 80, HEADER_HEIGHT - 6);
+        ctx.fillText('SHA', shaCol, HEADER_HEIGHT - 6);
+        ctx.fillText('Message', messageCol, HEADER_HEIGHT - 6);
         if (this.config.showAuthor) {
-            ctx.fillText('Author', width - 250, HEADER_HEIGHT - 6);
+            ctx.fillText('Author', authorCol, HEADER_HEIGHT - 6);
         }
         if (this.config.showDate) {
-            ctx.fillText('Date', width - 120, HEADER_HEIGHT - 6);
+            ctx.fillText('Date', dateCol, HEADER_HEIGHT - 6);
         }
         ctx.globalAlpha = 1;
     }
