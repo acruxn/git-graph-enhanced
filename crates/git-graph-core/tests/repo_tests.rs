@@ -448,3 +448,47 @@ fn test_filter_by_author_no_match() {
     let indices = filter_by_author(&commits, "zzz_no_match");
     assert!(indices.is_empty());
 }
+
+#[test]
+fn test_list_stashes_with_entry() {
+    let dir = TempDir::new().unwrap();
+    init_repo(dir.path());
+    std::fs::write(dir.path().join("file.txt"), "content").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    commit(dir.path(), "init");
+    std::fs::write(dir.path().join("file.txt"), "changed").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["stash"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stashes = git_graph_core::stash::list_stashes(dir.path()).unwrap();
+    assert_eq!(stashes.len(), 1);
+    assert!(!stashes[0].message.is_empty());
+}
+
+#[test]
+fn test_list_reflog_empty_repo() {
+    let dir = TempDir::new().unwrap();
+    Command::new("git")
+        .args(["init"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    // No commits — reflog should be empty or return Ok
+    let result = git_graph_core::commit::list_reflog(dir.path(), 10);
+    match result {
+        Ok(entries) => assert!(entries.is_empty()),
+        Err(_) => {} // Also acceptable — no HEAD target yet
+    }
+}
