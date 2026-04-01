@@ -602,6 +602,8 @@ export class GraphRenderer {
                     ctx.globalAlpha = 0.15;
                     ctx.fillRect(0, y, width, ROW_HEIGHT);
                     ctx.globalAlpha = 1;
+                    ctx.fillStyle = theme.focusBorder;
+                    ctx.fillRect(0, y, 3, ROW_HEIGHT);
                 }
             } else if (i === this.compareIndex) {
                 ctx.fillStyle = colors[1];
@@ -614,7 +616,9 @@ export class GraphRenderer {
                 ctx.setLineDash([]);
             } else if (i === this.hoverIndex) {
                 ctx.fillStyle = hoverBg || 'rgba(128,128,128,0.1)';
+                ctx.globalAlpha = 0.08;
                 ctx.fillRect(0, y, width, ROW_HEIGHT);
+                ctx.globalAlpha = 1;
             }
         }
 
