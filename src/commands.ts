@@ -11,6 +11,14 @@ export function registerCommands(context: vscode.ExtensionContext): void {
             } catch (err) {
                 vscode.window.showErrorMessage(`Git Graph Enhanced: ${err}`);
             }
+        }),
+        vscode.commands.registerCommand('gitGraphEnhanced.openTerminal', () => {
+            const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!repoPath) { return; }
+            vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
+        }),
+        vscode.commands.registerCommand('gitGraphEnhanced.export', () => {
+            GraphPanel.triggerExport();
         })
     );
 }
