@@ -28,60 +28,78 @@ export interface CommitDetailData {
 
 export class CommitPanel {
     private readonly container: HTMLElement;
+    private readonly graphContainer: HTMLElement;
     private visible = false;
     private onFileClick: ((filePath: string, commitId: string) => void) | null = null;
     private issueLinks: Record<string, string> = {};
     private onOpenExternal: ((url: string) => void) | null = null;
     private accessibilityMode = false;
     private avatars = new Map<string, string>();
+    private anchorY = 0;
+    private onHide: (() => void) | null = null;
 
     constructor() {
+        this.graphContainer = document.getElementById('graph-container')!;
         this.container = document.createElement('div');
-        this.container.id = 'commit-panel';
-        this.container.className = 'commit-panel';
-        document.body.appendChild(this.container);
+        this.container.className = 'inline-detail';
+        this.graphContainer.appendChild(this.container);
     }
 
     show(data: CommitDetailData): void {
+        this.showInline(data, this.anchorY);
+    }
+
+    showInline(data: CommitDetailData, yPosition: number): void {
+        this.anchorY = yPosition;
         this.visible = true;
         this.container.style.display = 'block';
+        this.container.style.top = `${yPosition}px`;
         this.container.innerHTML = '';
 
-        // Header: close button + SHA
-        const header = document.createElement('div');
-        header.className = 'commit-panel-header';
+        // Close button
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '\u00d7';
-        closeBtn.className = 'commit-panel-close';
+        closeBtn.className = 'inline-detail-close';
         closeBtn.setAttribute('aria-label', 'Close commit detail');
         closeBtn.onclick = () => this.hide();
-        header.appendChild(closeBtn);
-        const sha = document.createElement('code');
-        sha.textContent = data.commit.id;
-        header.appendChild(sha);
-        if (data.commit.parentIds.length > 1) {
-            const mergeLabel = document.createElement('span');
-            mergeLabel.className = 'commit-panel-merge-label';
-            mergeLabel.textContent = 'Merge commit';
-            header.appendChild(mergeLabel);
-        }
-        this.container.appendChild(header);
+        this.container.appendChild(closeBtn);
 
-        // Message + body
-        const msg = document.createElement('div');
-        msg.className = 'commit-panel-message';
-        this.renderLinkedText(replaceEmoji(data.commit.message), msg);
-        if (data.commit.body) {
-            const body = document.createElement('div');
-            body.className = 'commit-panel-body';
-            this.renderMarkdown(replaceEmoji(data.commit.body), body);
-            msg.appendChild(body);
-        }
-        this.container.appendChild(msg);
+        // Two-column layout
+        const layout = document.createElement('div');
+        layout.className = 'inline-detail-layout';
 
-        // Author + date
-        const meta = document.createElement('div');
-        meta.className = 'commit-panel-meta';
+        // Left: commit info
+        const left = document.createElement('div');
+        left.className = 'inline-detail-info';
+
+        // SHA + parents
+        const shaLine = document.createElement('div');
+        shaLine.className = 'inline-detail-sha';
+        const shaLabel = document.createElement('span');
+        shaLabel.textContent = 'SHA: ';
+        shaLabel.className = 'inline-detail-label';
+        shaLine.appendChild(shaLabel);
+        const shaCode = document.createElement('code');
+        shaCode.textContent = data.commit.id;
+        shaLine.appendChild(shaCode);
+        left.appendChild(shaLine);
+
+        if (data.commit.parentIds && data.commit.parentIds.length > 0) {
+            const parentLine = document.createElement('div');
+            parentLine.className = 'inline-detail-sha';
+            const parentLabel = document.createElement('span');
+            parentLabel.textContent = data.commit.parentIds.length > 1 ? 'Parents: ' : 'Parent: ';
+            parentLabel.className = 'inline-detail-label';
+            parentLine.appendChild(parentLabel);
+            const parentCode = document.createElement('code');
+            parentCode.textContent = data.commit.parentIds.map(p => p.slice(0, 7)).join(', ');
+            parentLine.appendChild(parentCode);
+            left.appendChild(parentLine);
+        }
+
+        // Author
+        const authorLine = document.createElement('div');
+        authorLine.className = 'inline-detail-author';
         const avatarUri = this.avatars.get(data.commit.author.email);
         if (avatarUri) {
             const img = document.createElement('img');
@@ -90,35 +108,56 @@ export class CommitPanel {
             img.height = 16;
             img.className = 'commit-panel-avatar';
             img.alt = '';
-            meta.appendChild(img);
+            authorLine.appendChild(img);
         }
-        meta.appendChild(document.createTextNode(`${data.commit.author.name} <${data.commit.author.email}> \u00b7 ${new Date(data.commit.timestamp * 1000).toLocaleString()}`));
-        this.container.appendChild(meta);
+        authorLine.appendChild(document.createTextNode(`${data.commit.author.name} <${data.commit.author.email}>`));
+        left.appendChild(authorLine);
 
-        // GPG signature indicator
+        // Date
+        const dateLine = document.createElement('div');
+        dateLine.className = 'inline-detail-date';
+        dateLine.textContent = new Date(data.commit.timestamp * 1000).toLocaleString();
+        left.appendChild(dateLine);
+
+        // Message
+        const msg = document.createElement('div');
+        msg.className = 'inline-detail-message';
+        this.renderLinkedText(replaceEmoji(data.commit.message), msg);
+        if (data.commit.body) {
+            const body = document.createElement('div');
+            body.className = 'inline-detail-body';
+            this.renderMarkdown(replaceEmoji(data.commit.body), body);
+            msg.appendChild(body);
+        }
+        left.appendChild(msg);
+
+        // GPG
         if (data.commit.gpgStatus && data.commit.gpgStatus !== 'none') {
             const sig = document.createElement('div');
             sig.className = 'commit-panel-signature';
             sig.textContent = `\uD83D\uDD12 Signed${data.commit.gpgSigner ? ` by ${data.commit.gpgSigner}` : ''}`;
-            this.container.appendChild(sig);
+            left.appendChild(sig);
         }
 
-        // Changed files
+        layout.appendChild(left);
+
+        // Right: changed files
         if (data.files && data.files.length > 0) {
+            const right = document.createElement('div');
+            right.className = 'inline-detail-files';
+            const heading = document.createElement('div');
+            heading.className = 'inline-detail-label';
+            heading.textContent = `Changed files (${data.files.length})`;
+            right.appendChild(heading);
             const fileList = document.createElement('ul');
             fileList.className = 'commit-panel-files';
             for (const file of data.files) {
                 const li = document.createElement('li');
                 const status = document.createElement('span');
                 status.className = `file-status file-status-${file.status}`;
-                if (this.accessibilityMode) {
-                    const labels: Record<string, string> = { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' };
-                    status.textContent = labels[file.status] ?? file.status;
-                    status.style.fontWeight = 'bold';
-                    status.style.textDecoration = 'underline';
-                } else {
-                    status.textContent = file.status[0].toUpperCase();
-                }
+                status.textContent = this.accessibilityMode
+                    ? ({ added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[file.status] ?? file.status)
+                    : file.status[0].toUpperCase();
                 li.appendChild(status);
                 const btn = document.createElement('button');
                 btn.className = 'file-link';
@@ -127,13 +166,17 @@ export class CommitPanel {
                 li.appendChild(btn);
                 fileList.appendChild(li);
             }
-            this.container.appendChild(fileList);
+            right.appendChild(fileList);
+            layout.appendChild(right);
         }
+
+        this.container.appendChild(layout);
     }
 
     hide(): void {
         this.visible = false;
         this.container.style.display = 'none';
+        this.onHide?.();
     }
 
     setOnFileClick(cb: (filePath: string, commitId: string) => void): void {
@@ -142,6 +185,10 @@ export class CommitPanel {
 
     setOnOpenExternal(cb: (url: string) => void): void {
         this.onOpenExternal = cb;
+    }
+
+    setOnHide(cb: () => void): void {
+        this.onHide = cb;
     }
 
     setConfig(cfg: { issueLinks?: Record<string, string>; accessibilityMode?: boolean }): void {
@@ -157,6 +204,14 @@ export class CommitPanel {
 
     get isVisible(): boolean {
         return this.visible;
+    }
+
+    get height(): number {
+        return this.visible ? this.container.offsetHeight : 0;
+    }
+
+    get anchorTop(): number {
+        return this.anchorY;
     }
 
     private renderLinkedText(text: string, parent: HTMLElement): void {
@@ -181,16 +236,13 @@ export class CommitPanel {
             if (match.index > lastIndex) {
                 parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
             }
-            // Find which pattern matched
             let url: string | undefined;
-            let groupOffset = 1;
             for (const [re, template] of patterns) {
                 const sub = new RegExp(re).exec(match[0]);
                 if (sub) {
                     url = template.replace(/\$(\d+)/g, (_, n) => sub[Number(n)] ?? '');
                     break;
                 }
-                groupOffset += (new RegExp(re)).exec('')?.length ?? 1;
             }
             const link = document.createElement('a');
             link.textContent = match[0];

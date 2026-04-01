@@ -39,9 +39,11 @@ export class MessageHandler {
                 if (payload.tags) { this.searchBar.setTags(payload.tags); }
                 break;
             }
-            case 'updateCommitDetail':
-                this.commitPanel.show(msg.payload as CommitDetailData);
+            case 'updateCommitDetail': {
+                const y = this.renderer.getSelectedRowTop() + 24;
+                this.commitPanel.showInline(msg.payload as CommitDetailData, y);
                 break;
+            }
             case 'searchResults':
                 this.searchBar.showResultsCount((msg.payload as SearchResultsPayload).results.length);
                 break;

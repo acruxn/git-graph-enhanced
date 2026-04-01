@@ -16,6 +16,7 @@ const messageHandler = new MessageHandler(vscode, renderer, commitPanel, searchB
 
 renderer.setSend((type, payload) => messageHandler.send(type, payload));
 renderer.setOnFocusSearch(() => searchBar.focus());
+renderer.setOnCloseDetail(() => commitPanel.hide());
 searchBar.setOnSearch((query, type) => messageHandler.send('search', { query, type }));
 searchBar.setOnOrderChange((order) => messageHandler.send('requestCommits', { order }));
 searchBar.setOnAuthorFilter((author) => {

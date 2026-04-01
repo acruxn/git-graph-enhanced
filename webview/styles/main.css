@@ -9,6 +9,7 @@ body {
 }
 
 #graph-container {
+    position: relative;
     width: 100vw;
     height: 100vh;
     overflow-y: auto;
@@ -48,37 +49,25 @@ body {
     background: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-/* Commit detail panel */
-.commit-panel {
+/* Commit detail panel — inline overlay */
+.inline-detail {
     display: none;
-    position: fixed;
+    position: absolute;
+    left: 0;
     right: 0;
-    top: 0;
-    bottom: 0;
-    width: 400px;
-    background: var(--vscode-sideBar-background);
-    border-left: 1px solid var(--vscode-sideBar-border);
-    overflow-y: auto;
-    padding: 12px;
     z-index: 50;
+    background: var(--vscode-editor-background);
+    border-top: 1px solid var(--vscode-panel-border);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    padding: 12px 16px;
     font-size: 13px;
 }
 
-.commit-panel-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.commit-panel-header code {
-    font-family: var(--vscode-editor-font-family);
-    font-size: 12px;
-    color: var(--vscode-textLink-foreground);
-    word-break: break-all;
-}
-
-.commit-panel-close {
+.inline-detail-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
     background: none;
     border: none;
     color: var(--vscode-foreground);
@@ -87,31 +76,62 @@ body {
     padding: 2px 6px;
 }
 
-.commit-panel-merge-label {
+.inline-detail-layout {
+    display: flex;
+    gap: 24px;
+}
+
+.inline-detail-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.inline-detail-files {
+    flex: 0 0 280px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.inline-detail-label {
+    color: var(--vscode-descriptionForeground);
     font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.commit-panel-message {
-    margin-bottom: 12px;
-    line-height: 1.4;
+.inline-detail-sha {
+    margin-bottom: 4px;
 }
 
-.commit-panel-message pre {
-    margin-top: 8px;
-    white-space: pre-wrap;
-    color: var(--vscode-descriptionForeground);
+.inline-detail-sha code {
+    font-family: var(--vscode-editor-font-family);
     font-size: 12px;
+    color: var(--vscode-textLink-foreground);
+    word-break: break-all;
 }
 
-.commit-panel-meta {
-    color: var(--vscode-descriptionForeground);
-    font-size: 12px;
-    margin-bottom: 16px;
+.inline-detail-author {
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-top: 8px;
+}
+
+.inline-detail-date {
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.inline-detail-message {
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.inline-detail-body {
+    margin-top: 4px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
 }
 
 .commit-panel-avatar {
