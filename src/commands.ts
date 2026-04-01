@@ -1,19 +1,38 @@
 import * as vscode from 'vscode';
 import { Backend } from './backend';
 import { GraphPanel } from './webview-provider';
+import { getConfig } from './config';
 
 async function discoverRepoPaths(): Promise<string[]> {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) { return []; }
     const paths: string[] = [];
-    for (const folder of folders) {
+    const seen = new Set<string>();
+    const maxDepth = getConfig('maxDepthOfRepoSearch', 1);
+
+    async function scan(uri: vscode.Uri, depth: number): Promise<void> {
+        if (seen.has(uri.fsPath)) { return; }
         try {
-            await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, '.git'));
-            paths.push(folder.uri.fsPath);
-        } catch {
-            // No .git in this folder
-        }
+            await vscode.workspace.fs.stat(vscode.Uri.joinPath(uri, '.git'));
+            paths.push(uri.fsPath);
+            seen.add(uri.fsPath);
+            return;
+        } catch { /* no .git here */ }
+        if (depth <= 0) { return; }
+        try {
+            const entries = await vscode.workspace.fs.readDirectory(uri);
+            for (const [name, type] of entries) {
+                if (type === vscode.FileType.Directory && !name.startsWith('.')) {
+                    await scan(vscode.Uri.joinPath(uri, name), depth - 1);
+                }
+            }
+        } catch { /* can't read directory */ }
     }
+
+    for (const folder of folders) {
+        await scan(folder.uri, maxDepth);
+    }
+
     return paths;
 }
 
