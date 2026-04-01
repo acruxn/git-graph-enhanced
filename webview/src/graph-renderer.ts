@@ -49,6 +49,7 @@ interface GraphData {
     branches?: Branch[];
     tags?: Tag[];
     stashes?: StashEntry[];
+    state?: string;
 }
 
 interface SendFn {
@@ -71,6 +72,7 @@ export class GraphRenderer {
     private readonly theme: ThemeManager;
     private readonly a11yRoot: HTMLElement;
     private readonly tooltip: HTMLElement;
+    private readonly stateBanner: HTMLElement;
     private send: SendFn = () => {};
     private onFocusSearch: (() => void) | null = null;
     private config: { showDate: boolean; showAuthor: boolean; graphStyle: 'curved' | 'angular' | 'straight'; accessibilityMode: boolean } = { showDate: true, showAuthor: true, graphStyle: 'curved', accessibilityMode: false };
@@ -110,6 +112,12 @@ export class GraphRenderer {
         this.tooltip.id = 'tooltip';
         this.tooltip.className = 'graph-tooltip';
         document.body.appendChild(this.tooltip);
+
+        // State banner (merge/rebase/cherry-pick in progress)
+        this.stateBanner = document.createElement('div');
+        this.stateBanner.className = 'state-banner';
+        this.stateBanner.style.display = 'none';
+        this.container.parentElement?.insertBefore(this.stateBanner, this.container);
 
         this.container.addEventListener('scroll', () => this.onScroll());
         canvas.addEventListener('click', (e) => this.onClick(e));
@@ -190,9 +198,32 @@ export class GraphRenderer {
             }
         }
 
+        this.updateStateBanner(data.state);
         this.selectedIndex = -1;
         this.hoverIndex = -1;
         this.resize();
+    }
+
+    private updateStateBanner(state?: string): void {
+        if (state && state !== 'clean') {
+            const labels: Record<string, string> = {
+                merging: 'Merge in progress',
+                rebasing: 'Rebase in progress',
+                'cherry-picking': 'Cherry-pick in progress',
+            };
+            this.stateBanner.textContent = '';
+            const text = document.createElement('span');
+            text.textContent = labels[state] ?? `${state} in progress`;
+            this.stateBanner.appendChild(text);
+            const btn = document.createElement('button');
+            btn.textContent = 'Abort';
+            btn.className = 'state-banner-abort';
+            btn.addEventListener('click', () => this.send('abortOperation'));
+            this.stateBanner.appendChild(btn);
+            this.stateBanner.style.display = 'flex';
+        } else {
+            this.stateBanner.style.display = 'none';
+        }
     }
 
     clearSelection(): void {
@@ -426,6 +457,21 @@ export class GraphRenderer {
                 this.send('closeCommitDetail');
                 this.scheduleRedraw();
                 return;
+            case 's':
+                if (mod) {
+                    e.preventDefault();
+                    const dir = e.shiftKey ? -1 : 1;
+                    const start = this.selectedIndex + dir;
+                    for (let i = start; i >= 0 && i < len; i += dir) {
+                        if (this.stashMap.has(this.commits[i].id)) {
+                            this.selectedIndex = i;
+                            this.scrollIntoView(i);
+                            this.scheduleRedraw();
+                            break;
+                        }
+                    }
+                }
+                return;
             default: return;
         }
 
@@ -508,6 +554,16 @@ export class GraphRenderer {
         // Row highlights
         for (let i = visStart; i < visEnd; i++) {
             const y = i * ROW_HEIGHT - scrollY;
+
+            // Branch color tint
+            const tintNode = this.nodeMap.get(commits[i].id);
+            if (tintNode) {
+                ctx.fillStyle = colors[tintNode.color % colors.length];
+                ctx.globalAlpha = 0.05;
+                ctx.fillRect(0, y, width, ROW_HEIGHT);
+                ctx.globalAlpha = 1;
+            }
+
             if (i === this.selectedIndex) {
                 if (this.config.accessibilityMode) {
                     ctx.strokeStyle = theme.focusBorder;
