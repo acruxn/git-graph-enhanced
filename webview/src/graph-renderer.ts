@@ -256,10 +256,16 @@ export class GraphRenderer {
         const width = this.container.clientWidth;
         const totalHeight = this.commits.length * ROW_HEIGHT;
 
-        canvas.width = width * dpr;
-        canvas.height = this.viewportHeight * dpr;
+        // CSS size: width = viewport, height = full scrollable content
         canvas.style.width = `${width}px`;
-        canvas.style.height = `${Math.max(totalHeight, this.viewportHeight)}px`;
+        canvas.style.height = `${Math.max(totalHeight, this.container.clientHeight)}px`;
+
+        // Backing store: only viewport size × DPR
+        canvas.width = width * dpr;
+        canvas.height = this.container.clientHeight * dpr;
+
+        // Reset transform before applying DPR scale
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.scale(dpr, dpr);
         this.scheduleRedraw();
     }
@@ -649,7 +655,7 @@ export class GraphRenderer {
                 // Branch label (first 3 chars) next to dot
                 const branches = this.branchMap.get(commit.id);
                 if (branches && branches.length > 0) {
-                    ctx.font = 'bold 8px var(--vscode-font-family, sans-serif)';
+                    ctx.font = 'bold 8px system-ui, -apple-system, sans-serif';
                     ctx.fillStyle = colors[colorIdx];
                     ctx.fillText(branches[0].name.slice(0, 3), dotX + r + 2, y + 3);
                 }
@@ -674,13 +680,13 @@ export class GraphRenderer {
             // Short SHA
             ctx.fillStyle = fg;
             ctx.globalAlpha = 0.7;
-            ctx.font = '12px var(--vscode-editor-font-family, monospace)';
+            ctx.font = '12px Menlo, Consolas, monospace';
             ctx.fillText(commit.shortId, x, y + 4);
             x += ctx.measureText(commit.shortId).width + 10;
 
             // Message
             ctx.globalAlpha = isMerge ? 0.5 : 1;
-            ctx.font = '13px var(--vscode-font-family, sans-serif)';
+            ctx.font = '13px system-ui, -apple-system, sans-serif';
             const displayMsg = replaceEmoji(commit.message);
             ctx.fillText(displayMsg, x, y + 4);
             x += ctx.measureText(displayMsg).width + 14;
@@ -688,7 +694,7 @@ export class GraphRenderer {
             // Date
             if (this.config.showDate) {
                 ctx.globalAlpha = 0.7;
-                ctx.font = '12px var(--vscode-font-family, sans-serif)';
+                ctx.font = '12px system-ui, -apple-system, sans-serif';
                 const date = new Date(commit.timestamp * 1000).toLocaleDateString();
                 ctx.fillText(date, x, y + 4);
                 x += ctx.measureText(date).width + 14;
@@ -697,7 +703,7 @@ export class GraphRenderer {
             // Author
             if (this.config.showAuthor) {
                 ctx.globalAlpha = isMerge ? 0.4 : 0.7;
-                ctx.font = '12px var(--vscode-font-family, sans-serif)';
+                ctx.font = '12px system-ui, -apple-system, sans-serif';
                 if (x < width - 100) {
                     ctx.fillText(commit.author.name, x, y + 4);
                 }
@@ -723,7 +729,7 @@ export class GraphRenderer {
 
         ctx.fillStyle = theme.foreground;
         ctx.globalAlpha = 0.6;
-        ctx.font = 'bold 11px var(--vscode-font-family, sans-serif)';
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
         ctx.fillText('Graph', GRAPH_LEFT, HEADER_HEIGHT - 6);
         ctx.fillText('SHA', this.textLeft, HEADER_HEIGHT - 6);
         ctx.fillText('Message', this.textLeft + 80, HEADER_HEIGHT - 6);
@@ -835,7 +841,7 @@ export class GraphRenderer {
         const stash = this.stashMap.get(commitId);
         if (!branches && !tags && !stash) { return x; }
 
-        ctx.font = '11px var(--vscode-font-family, sans-serif)';
+        ctx.font = '11px system-ui, -apple-system, sans-serif';
         const by = cy - BADGE_HEIGHT / 2;
 
         if (branches) {
@@ -853,9 +859,9 @@ export class GraphRenderer {
 
                 // Label
                 ctx.fillStyle = '#fff';
-                if (b.isHead) { ctx.font = 'bold 11px var(--vscode-font-family, sans-serif)'; }
+                if (b.isHead) { ctx.font = 'bold 11px system-ui, -apple-system, sans-serif'; }
                 ctx.fillText(label, x + BADGE_PAD, cy + 4);
-                if (b.isHead) { ctx.font = '11px var(--vscode-font-family, sans-serif)'; }
+                if (b.isHead) { ctx.font = '11px system-ui, -apple-system, sans-serif'; }
 
                 x += bw + BADGE_GAP;
             }
