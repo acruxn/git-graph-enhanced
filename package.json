@@ -96,6 +96,28 @@
           "default": {},
           "description": "Regex-to-URL mapping for issue linking. Example: { \"#(\\\\d+)\": \"https://github.com/owner/repo/issues/$1\" }",
           "additionalProperties": { "type": "string" }
+        },
+        "gitGraphEnhanced.branchGroups": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "pattern": { "type": "string" }
+            }
+          },
+          "description": "Custom branch groupings. Example: [{ \"label\": \"Features\", \"pattern\": \"feature/*\" }]"
+        },
+        "gitGraphEnhanced.showReflog": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include reflog entries in the graph"
+        },
+        "gitGraphEnhanced.accessibilityMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show text indicators (A/M/D/R) alongside colors for file status, distinct shapes for node types, and high-contrast focus rings"
         }
       }
     }
