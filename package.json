@@ -44,6 +44,16 @@
         "command": "gitGraphEnhanced.openTerminal",
         "title": "Open Terminal at Repository",
         "category": "Git Graph Enhanced"
+      },
+      {
+        "command": "gitGraphEnhanced.exportConfig",
+        "title": "Export Configuration",
+        "category": "Git Graph Enhanced"
+      },
+      {
+        "command": "gitGraphEnhanced.importConfig",
+        "title": "Import Configuration",
+        "category": "Git Graph Enhanced"
       }
     ],
     "configuration": {
