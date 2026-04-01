@@ -54,6 +54,11 @@
         "command": "gitGraphEnhanced.importConfig",
         "title": "Import Configuration",
         "category": "Git Graph Enhanced"
+      },
+      {
+        "command": "gitGraphEnhanced.showAll",
+        "title": "Show All Repository Graphs",
+        "category": "Git Graph Enhanced"
       }
     ],
     "configuration": {
@@ -124,10 +129,21 @@
           "default": false,
           "description": "Include reflog entries in the graph"
         },
+        "gitGraphEnhanced.prProvider": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "github", "gitlab", "bitbucket"],
+          "description": "Pull request provider. 'auto' detects from remote URL."
+        },
         "gitGraphEnhanced.accessibilityMode": {
           "type": "boolean",
           "default": false,
           "description": "Show text indicators (A/M/D/R) alongside colors for file status, distinct shapes for node types, and high-contrast focus rings"
+        },
+        "gitGraphEnhanced.promptForSshPassphrase": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prompt for SSH key passphrase when needed"
         }
       }
     }

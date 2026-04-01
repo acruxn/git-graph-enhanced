@@ -22,6 +22,7 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "filterCommits" => handle_filter_commits(req),
         "getStashes" => handle_get_stashes(req),
         "getReflog" => handle_get_reflog(req),
+        "getRemoteUrl" => handle_get_remote_url(req),
         "deleteBranches" => handle_delete_branches(req),
         "getRepoState" => handle_get_repo_state(req),
         "abortOperation" => handle_abort_operation(req),
@@ -277,6 +278,23 @@ fn handle_get_reflog(req: &JsonRpcRequest) -> JsonRpcResponse {
 
     match git_graph_core::commit::list_reflog(Path::new(repo_path), max_count) {
         Ok(commits) => JsonRpcResponse::success(req.id, json!({ "commits": commits })),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
+}
+
+fn handle_get_remote_url(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    let remote_name = req
+        .params
+        .get("remoteName")
+        .and_then(|v| v.as_str())
+        .unwrap_or("origin");
+
+    match git_graph_core::branch::get_remote_url(Path::new(repo_path), remote_name) {
+        Ok(url) => JsonRpcResponse::success(req.id, json!({ "url": url })),
         Err(e) => core_error_to_response(req.id, &e),
     }
 }

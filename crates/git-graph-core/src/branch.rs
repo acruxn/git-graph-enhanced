@@ -69,6 +69,20 @@ pub fn list_branches(repo_path: &Path) -> CoreResult<Vec<Branch>> {
     Ok(branches)
 }
 
+pub fn get_remote_url(repo_path: &Path, remote_name: &str) -> CoreResult<String> {
+    let repo = open_repo(repo_path)?;
+    let remote = repo
+        .find_remote(gix::bstr::BStr::new(remote_name.as_bytes()))
+        .map_err(|e| CoreError::InvalidRevision { rev: e.to_string() })?;
+    let url =
+        remote
+            .url(gix::remote::Direction::Fetch)
+            .ok_or_else(|| CoreError::InvalidRevision {
+                rev: format!("no URL for remote '{remote_name}'"),
+            })?;
+    Ok(url.to_bstring().to_string())
+}
+
 pub fn delete_branch(repo_path: &Path, branch_name: &str) -> CoreResult<()> {
     let repo = open_repo(repo_path)?;
     let ref_name = format!("refs/heads/{branch_name}");

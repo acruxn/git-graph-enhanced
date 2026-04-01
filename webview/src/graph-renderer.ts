@@ -384,6 +384,16 @@ export class GraphRenderer {
         const branches = this.branchMap.get(commit.id);
         if (branches) {
             for (const b of branches) {
+                if (!b.isRemote && !b.isHead) {
+                    const prItem = document.createElement('div');
+                    prItem.className = 'context-menu-item';
+                    prItem.textContent = `Create PR: ${b.name}`;
+                    prItem.addEventListener('click', () => {
+                        this.send('createPr', { branchName: b.name });
+                        this.closeContextMenu();
+                    });
+                    menu.appendChild(prItem);
+                }
                 if (!b.isRemote) {
                     const item = document.createElement('div');
                     item.className = 'context-menu-item';
