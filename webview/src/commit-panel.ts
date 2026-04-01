@@ -43,12 +43,20 @@ export class CommitPanel {
     private avatars = new Map<string, string>();
     private anchorY = 0;
     private onHide: (() => void) | null = null;
+    private onResize: ((height: number) => void) | null = null;
+    private resizeObserver: ResizeObserver;
 
     constructor() {
         this.graphContainer = document.getElementById('graph-container')!;
         this.container = document.createElement('div');
         this.container.className = 'inline-detail';
         this.graphContainer.appendChild(this.container);
+        this.resizeObserver = new ResizeObserver(() => {
+            if (this.visible) {
+                this.onResize?.(this.container.offsetHeight);
+            }
+        });
+        this.resizeObserver.observe(this.container);
     }
 
     show(data: CommitDetailData): void {
@@ -197,7 +205,11 @@ export class CommitPanel {
     }
 
     get height(): number {
-        return this.visible ? Math.max(this.container.offsetHeight, 200) : 0;
+        return this.visible ? this.container.offsetHeight : 0;
+    }
+
+    setOnResize(cb: (height: number) => void): void {
+        this.onResize = cb;
     }
 
     get anchorTop(): number {
