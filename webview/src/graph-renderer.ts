@@ -6,6 +6,7 @@ interface Commit {
     shortId: string;
     message: string;
     author: { name: string; email: string };
+    parentIds: string[];
     timestamp: number;
 }
 
@@ -72,7 +73,7 @@ export class GraphRenderer {
     private readonly tooltip: HTMLElement;
     private send: SendFn = () => {};
     private onFocusSearch: (() => void) | null = null;
-    private config = { showDate: true, showAuthor: true };
+    private config: { showDate: boolean; showAuthor: boolean; graphStyle: 'curved' | 'angular' | 'straight' } = { showDate: true, showAuthor: true, graphStyle: 'curved' };
 
     private commits: Commit[] = [];
     private nodeMap = new Map<string, GraphNode>();
@@ -130,8 +131,8 @@ export class GraphRenderer {
         this.onFocusSearch = fn;
     }
 
-    setConfig(cfg: { showDate: boolean; showAuthor: boolean }): void {
-        this.config = cfg;
+    setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' }): void {
+        this.config = { ...this.config, ...cfg };
         this.scheduleRedraw();
     }
 
@@ -517,11 +518,18 @@ export class GraphRenderer {
 
             // Dot
             const dotX = GRAPH_LEFT + col * COL_WIDTH;
+            const isMerge = commit.parentIds.length > 1;
             ctx.beginPath();
-            ctx.fillStyle = colors[colorIdx];
             ctx.globalAlpha = dimAlpha;
             ctx.arc(dotX, y, DOT_RADIUS, 0, Math.PI * 2);
-            ctx.fill();
+            if (isMerge) {
+                ctx.strokeStyle = colors[colorIdx];
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = colors[colorIdx];
+                ctx.fill();
+            }
             ctx.globalAlpha = 1;
 
             // Badges + text
@@ -536,7 +544,7 @@ export class GraphRenderer {
             x += ctx.measureText(commit.shortId).width + 10;
 
             // Message
-            ctx.globalAlpha = 1;
+            ctx.globalAlpha = isMerge ? 0.5 : 1;
             ctx.font = '13px var(--vscode-font-family, sans-serif)';
             const displayMsg = replaceEmoji(commit.message);
             ctx.fillText(displayMsg, x, y + 4);
@@ -553,7 +561,7 @@ export class GraphRenderer {
 
             // Author
             if (this.config.showAuthor) {
-                ctx.globalAlpha = 0.7;
+                ctx.globalAlpha = isMerge ? 0.4 : 0.7;
                 ctx.font = '12px var(--vscode-font-family, sans-serif)';
                 if (x < width - 100) {
                     ctx.fillText(commit.author.name, x, y + 4);
@@ -670,8 +678,18 @@ export class GraphRenderer {
         if (edge.fromColumn === edge.toColumn) {
             ctx.lineTo(toX, toY);
         } else {
-            const cpOffsetY = ROW_HEIGHT / 2;
-            ctx.bezierCurveTo(fromX, fromY + cpOffsetY, toX, toY - cpOffsetY, toX, toY);
+            const style = this.config.graphStyle;
+            if (style === 'straight') {
+                ctx.lineTo(toX, toY);
+            } else if (style === 'angular') {
+                const midY = (fromY + toY) / 2;
+                ctx.lineTo(fromX, midY);
+                ctx.lineTo(toX, midY);
+                ctx.lineTo(toX, toY);
+            } else {
+                const cpOffsetY = ROW_HEIGHT / 2;
+                ctx.bezierCurveTo(fromX, fromY + cpOffsetY, toX, toY - cpOffsetY, toX, toY);
+            }
         }
     }
 

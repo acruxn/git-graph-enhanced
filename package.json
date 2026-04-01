@@ -74,6 +74,12 @@
           "type": "boolean",
           "default": true,
           "description": "Show author column in graph"
+        },
+        "gitGraphEnhanced.graphStyle": {
+          "type": "string",
+          "default": "curved",
+          "enum": ["curved", "angular", "straight"],
+          "description": "Graph edge style: curved (bezier), angular (right-angle), or straight lines"
         }
       }
     }
