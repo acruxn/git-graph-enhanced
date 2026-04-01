@@ -31,6 +31,7 @@ export class CommitPanel {
     private onFileClick: ((filePath: string, commitId: string) => void) | null = null;
     private issueLinks: Record<string, string> = {};
     private onOpenExternal: ((url: string) => void) | null = null;
+    private accessibilityMode = false;
 
     constructor() {
         this.container = document.createElement('div');
@@ -97,7 +98,14 @@ export class CommitPanel {
                 const li = document.createElement('li');
                 const status = document.createElement('span');
                 status.className = `file-status file-status-${file.status}`;
-                status.textContent = file.status[0].toUpperCase();
+                if (this.accessibilityMode) {
+                    const labels: Record<string, string> = { added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' };
+                    status.textContent = labels[file.status] ?? file.status;
+                    status.style.fontWeight = 'bold';
+                    status.style.textDecoration = 'underline';
+                } else {
+                    status.textContent = file.status[0].toUpperCase();
+                }
                 li.appendChild(status);
                 const btn = document.createElement('button');
                 btn.className = 'file-link';
@@ -123,8 +131,9 @@ export class CommitPanel {
         this.onOpenExternal = cb;
     }
 
-    setConfig(cfg: { issueLinks?: Record<string, string> }): void {
+    setConfig(cfg: { issueLinks?: Record<string, string>; accessibilityMode?: boolean }): void {
         if (cfg.issueLinks) { this.issueLinks = cfg.issueLinks; }
+        if (cfg.accessibilityMode !== undefined) { this.accessibilityMode = cfg.accessibilityMode; }
     }
 
     get isVisible(): boolean {
