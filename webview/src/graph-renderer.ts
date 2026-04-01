@@ -131,6 +131,10 @@ export class GraphRenderer {
         this.onFocusSearch = fn;
     }
 
+    exportAsDataUrl(): string {
+        return this.ctx.canvas.toDataURL('image/png');
+    }
+
     setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' }): void {
         this.config = { ...this.config, ...cfg };
         this.scheduleRedraw();
@@ -327,6 +331,7 @@ export class GraphRenderer {
             ['Copy SHA', () => this.send('copyToClipboard', { text: commit.id })],
             ['Copy Short SHA', () => this.send('copyToClipboard', { text: commit.shortId })],
             ['View Diff', () => this.send('openDiff', { commitId: commit.id })],
+            ['Open Terminal', () => this.send('openTerminal')],
         ];
 
         for (const [label, action] of items) {
@@ -335,6 +340,22 @@ export class GraphRenderer {
             item.textContent = label;
             item.addEventListener('click', () => { action(); this.closeContextMenu(); });
             menu.appendChild(item);
+        }
+
+        const branches = this.branchMap.get(commit.id);
+        if (branches) {
+            for (const b of branches) {
+                if (!b.isRemote) {
+                    const item = document.createElement('div');
+                    item.className = 'context-menu-item';
+                    item.textContent = `Delete branch: ${b.name}`;
+                    item.addEventListener('click', () => {
+                        this.send('deleteBranches', { branches: [b.name] });
+                        this.closeContextMenu();
+                    });
+                    menu.appendChild(item);
+                }
+            }
         }
 
         document.body.appendChild(menu);

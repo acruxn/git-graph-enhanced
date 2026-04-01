@@ -57,7 +57,13 @@ export class MessageHandler {
                 break;
             case 'updateConfig':
                 this.renderer.setConfig(msg.payload as { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight' });
+                this.commitPanel.setConfig(msg.payload as { issueLinks?: Record<string, string> });
                 break;
+            case 'triggerExport': {
+                const dataUrl = this.renderer.exportAsDataUrl();
+                this.vscode.postMessage({ type: 'exportGraph', payload: { dataUrl } });
+                break;
+            }
             case 'themeChanged':
                 break;
         }
