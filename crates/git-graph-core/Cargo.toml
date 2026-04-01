@@ -7,3 +7,6 @@ edition = "2021"
 gix = { workspace = true, features = ["max-performance"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
