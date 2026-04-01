@@ -21,6 +21,7 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "getFileContent" => handle_get_file_content(req),
         "filterCommits" => handle_filter_commits(req),
         "getStashes" => handle_get_stashes(req),
+        "deleteBranches" => handle_delete_branches(req),
         _ => JsonRpcResponse::error(req.id, -32601, format!("method not found: {}", req.method)),
     }
 }
@@ -258,6 +259,32 @@ fn handle_get_stashes(req: &JsonRpcRequest) -> JsonRpcResponse {
         Ok(stashes) => JsonRpcResponse::success(req.id, json!({ "stashes": stashes })),
         Err(e) => core_error_to_response(req.id, &e),
     }
+}
+
+fn handle_delete_branches(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    let branches: Vec<String> =
+        match serde_json::from_value(req.params.get("branches").cloned().unwrap_or_default()) {
+            Ok(b) => b,
+            Err(_) => {
+                return JsonRpcResponse::error(req.id, -32602, "missing or invalid param: branches")
+            }
+        };
+
+    let results: Vec<serde_json::Value> = branches
+        .iter()
+        .map(
+            |name| match git_graph_core::branch::delete_branch(Path::new(repo_path), name) {
+                Ok(()) => json!({ "name": name, "success": true }),
+                Err(e) => json!({ "name": name, "success": false, "error": e.to_string() }),
+            },
+        )
+        .collect();
+
+    JsonRpcResponse::success(req.id, json!({ "results": results }))
 }
 
 fn core_error_to_response(id: u64, err: &CoreError) -> JsonRpcResponse {
