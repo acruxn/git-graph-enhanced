@@ -54,13 +54,23 @@ export class MessageHandler {
             case 'searchResults': {
                 const p = msg.payload as SearchResultsPayload;
                 this.searchBar.showResultsCount(p.results.length);
-                const matchIds = new Set(p.results.map((r: { commit?: { id?: string } }) => r.commit?.id).filter(Boolean));
+                if (p.results.length === 0) {
+                    this.renderer.setFilteredIndices(null);
+                    break;
+                }
+                const matchIds = new Set(
+                    p.results.map((r: { commit?: { id?: string } }) => r.commit?.id).filter(Boolean)
+                );
                 const commits = this.renderer.getCommits();
                 const indices: number[] = [];
                 for (let i = 0; i < commits.length; i++) {
                     if (matchIds.has(commits[i].id)) { indices.push(i); }
                 }
-                this.renderer.setFilteredIndices(indices.length > 0 ? indices : null);
+                // If matches exist but none are in the loaded page, dim everything
+                this.renderer.setFilteredIndices(indices.length > 0 ? indices : []);
+                if (indices.length > 0) {
+                    this.renderer.scrollToIndex(indices[0]);
+                }
                 break;
             }
             case 'filterResults': {
