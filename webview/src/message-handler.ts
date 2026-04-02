@@ -103,6 +103,11 @@ export class MessageHandler {
             case 'updateAvatars':
                 this.commitPanel.setAvatars(msg.payload as Record<string, string>);
                 break;
+            case 'fileContent': {
+                const p = msg.payload as { content: string; filePath: string; commitId: string };
+                this.commitPanel.showFilePreview(p.filePath, p.commitId, p.content);
+                break;
+            }
             case 'themeChanged':
                 break;
         }

@@ -386,3 +386,29 @@ details[open] > .file-tree-folder::before {
     font-family: var(--vscode-editor-font-family);
     font-size: 12px;
 }
+
+.file-preview-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 12px;
+    opacity: 0.5;
+}
+
+.file-preview-btn:hover {
+    opacity: 1;
+}
+
+.file-preview {
+    margin: 4px 0 4px 20px;
+    padding: 8px;
+    max-height: 200px;
+    overflow: auto;
+    background: var(--vscode-textCodeBlock-background);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    border-radius: 3px;
+    white-space: pre;
+    tab-size: 4;
+}
