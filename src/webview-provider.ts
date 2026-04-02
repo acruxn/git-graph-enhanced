@@ -268,13 +268,6 @@ export class GraphPanel implements vscode.Disposable {
                             vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
                             break;
                         }
-                        case 'requestFileContent': {
-                            const p = msg.payload as { filePath: string; commitId: string };
-                            const repoPath = this.getRepoPath();
-                            const result = await this.backend.request('getFileContent', { repoPath, commitId: p.commitId, filePath: p.filePath });
-                            this.postMessage('fileContent', { ...(result as object), filePath: p.filePath, commitId: p.commitId });
-                            break;
-                        }
                         case 'createPr': {
                             const { branchName } = msg.payload as { branchName: string };
                             const repoPath = this.getRepoPath();

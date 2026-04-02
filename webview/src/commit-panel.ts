@@ -37,7 +37,7 @@ export class CommitPanel {
     private readonly graphContainer: HTMLElement;
     private visible = false;
     private onFileClick: ((filePath: string, commitId: string) => void) | null = null;
-    private onRequestPreview: ((filePath: string, commitId: string) => void) | null = null;
+
     private issueLinks: Record<string, string> = {};
     private onOpenExternal: ((url: string) => void) | null = null;
     private accessibilityMode = false;
@@ -182,10 +182,6 @@ export class CommitPanel {
         this.onFileClick = cb;
     }
 
-    setOnRequestPreview(cb: (filePath: string, commitId: string) => void): void {
-        this.onRequestPreview = cb;
-    }
-
     setOnOpenExternal(cb: (url: string) => void): void {
         this.onOpenExternal = cb;
     }
@@ -302,13 +298,6 @@ export class CommitPanel {
         }
     }
 
-    showFilePreview(filePath: string, commitId: string, content: string): void {
-        const el = this.container.querySelector(
-            `.file-preview[data-file-path="${CSS.escape(filePath)}"][data-commit-id="${CSS.escape(commitId)}"]`
-        ) as HTMLPreElement | null;
-        if (el) { el.textContent = content; }
-    }
-
     private buildFileTree(files: FileDiff[]): TreeNode {
         const root: TreeNode = { name: '', children: new Map(), files: [] };
         for (const file of files) {
@@ -382,26 +371,6 @@ export class CommitPanel {
             btn.textContent = file.name;
             btn.addEventListener('click', () => this.onFileClick?.(file.path, commitId));
             item.appendChild(btn);
-
-            const previewBtn = document.createElement('button');
-            previewBtn.className = 'file-preview-btn';
-            previewBtn.textContent = '\uD83D\uDC41';
-            previewBtn.setAttribute('aria-label', `Preview ${file.name}`);
-            previewBtn.addEventListener('click', () => {
-                const existing = item.querySelector('.file-preview');
-                if (existing) {
-                    existing.remove();
-                    return;
-                }
-                this.onRequestPreview?.(file.path, commitId);
-                const placeholder = document.createElement('pre');
-                placeholder.className = 'file-preview';
-                placeholder.dataset.filePath = file.path;
-                placeholder.dataset.commitId = commitId;
-                placeholder.textContent = 'Loading…';
-                item.appendChild(placeholder);
-            });
-            item.appendChild(previewBtn);
 
             container.appendChild(item);
         }

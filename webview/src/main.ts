@@ -81,7 +81,6 @@ searchBar.setOnBranchGroupFilter((pattern) => {
 
 commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
 commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
-commitPanel.setOnRequestPreview((filePath, commitId) => messageHandler.send('requestFileContent', { filePath, commitId }));
 searchBar.setOnSortDirection((dir) => messageHandler.send('requestCommits', { sortDirection: dir }));
 
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
