@@ -40,6 +40,11 @@ export class MessageHandler {
                 if (payload.branches) { this.searchBar.setBranches(payload.branches); }
                 break;
             }
+            case 'appendCommits': {
+                const payload = msg.payload as Parameters<GraphRenderer['render']>[0];
+                this.renderer.render(payload);
+                break;
+            }
             case 'updateCommitDetail': {
                 const y = this.renderer.getSelectedRowTop() + ROW_HEIGHT;
                 this.commitPanel.showInline(msg.payload as CommitDetailData, y);

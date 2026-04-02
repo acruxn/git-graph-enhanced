@@ -133,7 +133,7 @@ export class GraphPanel implements vscode.Disposable {
                             break;
                         case 'requestCommits': {
                             const p = msg.payload as Record<string, unknown> | undefined;
-                            if (p?.order) {
+                            if (p?.order || p?.sortDirection) {
                                 await this.handleReady();
                             } else {
                                 await this.handleRequestCommits(msg.payload);
@@ -182,6 +182,9 @@ export class GraphPanel implements vscode.Disposable {
                         }
                         case 'saveScrollPosition':
                             this.context.workspaceState.update('graphScrollTop', (msg.payload as { scrollTop: number }).scrollTop);
+                            break;
+                        case 'saveColumnWidths':
+                            this.context.workspaceState.update('graphColumnWidths', (msg.payload as { columnWidths: Record<string, number> }).columnWidths);
                             break;
                         case 'exportGraph': {
                             const { dataUrl } = msg.payload as { dataUrl: string };
@@ -270,7 +273,8 @@ export class GraphPanel implements vscode.Disposable {
                                 await vscode.env.openExternal(vscode.Uri.parse(prUrl));
                             }
                             break;
-                        }                        case 'abortOperation': {
+                        }
+                        case 'abortOperation': {
                             const repoPath = this.getRepoPath();
                             await this.backend.request('abortOperation', { repoPath });
                             await this.handleReady();
@@ -339,6 +343,7 @@ export class GraphPanel implements vscode.Disposable {
             issueLinks: getConfig('issueLinking', {}),
             accessibilityMode: getConfig('accessibilityMode', false),
             branchGroups: getConfig('branchGroups', []),
+            columnWidths: this.context.workspaceState.get('graphColumnWidths'),
         });
 
         const savedScroll = this.context.workspaceState.get<number>('graphScrollTop', 0);
