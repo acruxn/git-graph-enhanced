@@ -8,6 +8,7 @@ interface Commit {
     author: { name: string; email: string };
     parentIds: string[];
     timestamp: number;
+    gpgStatus?: string;
 }
 
 interface GraphNode {
@@ -920,7 +921,7 @@ export class GraphRenderer {
             ctx.rect(shaCol, rowTop, messageCol - shaCol, ROW_HEIGHT);
             ctx.clip();
             ctx.fillStyle = fg;
-            ctx.globalAlpha = 0.7;
+            ctx.globalAlpha = isMerge ? 0.35 : 0.7;
             ctx.font = '12px Menlo, Consolas, monospace';
             ctx.fillText(commit.shortId, shaCol, y + 4);
             ctx.restore();
@@ -971,7 +972,7 @@ export class GraphRenderer {
                 ctx.beginPath();
                 ctx.rect(dateCol, rowTop, width - dateCol, ROW_HEIGHT);
                 ctx.clip();
-                ctx.globalAlpha = 0.7;
+                ctx.globalAlpha = isMerge ? 0.35 : 0.7;
                 ctx.font = '12px system-ui, -apple-system, sans-serif';
                 ctx.fillText(this.formatDate(commit.timestamp, width - dateCol), dateCol, y + 4);
                 ctx.restore();
@@ -1134,30 +1135,77 @@ export class GraphRenderer {
         const branches = this.branchMap.get(commitId);
         const tags = this.tagMap.get(commitId);
         const stash = this.stashMap.get(commitId);
-        if (!branches && !tags && !stash) { return x; }
+        const commit = this.commits.find(c => c.id === commitId);
+        const hasGpg = commit?.gpgStatus && commit.gpgStatus !== 'none';
+        if (!branches && !tags && !stash && !hasGpg) { return x; }
 
         ctx.font = '11px system-ui, -apple-system, sans-serif';
         const by = cy - BADGE_HEIGHT / 2;
 
         if (branches) {
-            for (const b of branches) {
-                const node = this.nodeMap.get(commitId);
-                const colorIdx = node ? node.color % colors.length : 0;
-                const label = b.name;
-                const tw = ctx.measureText(label).width;
-                const bw = tw + BADGE_PAD * 2;
+            const local = branches.filter(b => !b.isRemote);
+            const remote = branches.filter(b => b.isRemote);
+            const consumed = new Set<string>();
+            const node = this.nodeMap.get(commitId);
+            const colorIdx = node ? node.color % colors.length : 0;
 
-                // Filled badge
+            for (const b of local) {
+                const match = remote.find(r => r.name.endsWith('/' + b.name));
+                if (match) {
+                    consumed.add(match.name);
+                    const sep = ' | ';
+                    const remotePart = match.name.split('/')[0];
+                    const localFont = b.isHead ? 'bold 11px system-ui, -apple-system, sans-serif' : '11px system-ui, -apple-system, sans-serif';
+                    const normalFont = '11px system-ui, -apple-system, sans-serif';
+
+                    ctx.font = localFont;
+                    const localW = ctx.measureText(b.name).width;
+                    ctx.font = normalFont;
+                    const sepW = ctx.measureText(sep).width;
+                    const remoteW = ctx.measureText(remotePart).width;
+                    const bw = BADGE_PAD + localW + sepW + remoteW + BADGE_PAD;
+
+                    ctx.fillStyle = colors[colorIdx];
+                    this.roundRect(ctx, x, by, bw, BADGE_HEIGHT, BADGE_RADIUS);
+                    ctx.fill();
+
+                    let tx = x + BADGE_PAD;
+                    ctx.fillStyle = '#fff';
+                    ctx.font = localFont;
+                    ctx.fillText(b.name, tx, cy + 4);
+                    tx += localW;
+                    ctx.font = normalFont;
+                    ctx.globalAlpha = 0.6;
+                    ctx.fillText(sep, tx, cy + 4);
+                    tx += sepW;
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillText(remotePart, tx, cy + 4);
+                    ctx.globalAlpha = 1;
+
+                    x += bw + BADGE_GAP;
+                } else {
+                    const tw = ctx.measureText(b.name).width;
+                    const bw = tw + BADGE_PAD * 2;
+                    ctx.fillStyle = colors[colorIdx];
+                    this.roundRect(ctx, x, by, bw, BADGE_HEIGHT, BADGE_RADIUS);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    if (b.isHead) { ctx.font = 'bold 11px system-ui, -apple-system, sans-serif'; }
+                    ctx.fillText(b.name, x + BADGE_PAD, cy + 4);
+                    if (b.isHead) { ctx.font = '11px system-ui, -apple-system, sans-serif'; }
+                    x += bw + BADGE_GAP;
+                }
+            }
+
+            for (const r of remote) {
+                if (consumed.has(r.name)) { continue; }
+                const tw = ctx.measureText(r.name).width;
+                const bw = tw + BADGE_PAD * 2;
                 ctx.fillStyle = colors[colorIdx];
                 this.roundRect(ctx, x, by, bw, BADGE_HEIGHT, BADGE_RADIUS);
                 ctx.fill();
-
-                // Label
                 ctx.fillStyle = '#fff';
-                if (b.isHead) { ctx.font = 'bold 11px system-ui, -apple-system, sans-serif'; }
-                ctx.fillText(label, x + BADGE_PAD, cy + 4);
-                if (b.isHead) { ctx.font = '11px system-ui, -apple-system, sans-serif'; }
-
+                ctx.fillText(r.name, x + BADGE_PAD, cy + 4);
                 x += bw + BADGE_GAP;
             }
         }
@@ -1202,6 +1250,21 @@ export class GraphRenderer {
             ctx.globalAlpha = 1;
             ctx.lineWidth = 2;
 
+            x += bw + BADGE_GAP;
+        }
+
+        if (hasGpg) {
+            const icon = commit!.gpgStatus === 'good' ? '✓' : commit!.gpgStatus === 'bad' ? '✗' : '?';
+            const color = commit!.gpgStatus === 'good' ? '#4caf50' : commit!.gpgStatus === 'bad' ? '#f44336' : '#9e9e9e';
+            const tw = ctx.measureText(icon).width;
+            const bw = tw + BADGE_PAD * 2;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.8;
+            this.roundRect(ctx, x, by, bw, BADGE_HEIGHT, BADGE_RADIUS);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#fff';
+            ctx.fillText(icon, x + BADGE_PAD, cy + 4);
             x += bw + BADGE_GAP;
         }
 
