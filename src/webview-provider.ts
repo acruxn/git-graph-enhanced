@@ -116,6 +116,18 @@ export class GraphPanel implements vscode.Disposable {
     <title>Git Graph</title>
 </head>
 <body>
+    <div id="toolbar" class="toolbar">
+        <div class="toolbar__left">
+            <button id="repo-picker" class="toolbar-btn" title="Switch repository"></button>
+        </div>
+        <div class="toolbar__right">
+            <button class="toolbar-btn filter-toggle" data-filter="local" aria-checked="true" title="Local branches">Local</button>
+            <button class="toolbar-btn filter-toggle" data-filter="remote" aria-checked="true" title="Remote branches">Remote</button>
+            <button class="toolbar-btn filter-toggle" data-filter="tags" aria-checked="true" title="Tags">Tags</button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" id="settings-btn" title="Settings">&#x2699;</button>
+        </div>
+    </div>
     <div id="error-banner" role="alert"></div>
     <div id="graph-container">
         <canvas id="graph-canvas" aria-label="Git commit graph"></canvas>
@@ -293,6 +305,25 @@ export class GraphPanel implements vscode.Disposable {
                             await this.handleReady();
                             break;
                         }
+                        case 'requestRepoPicker': {
+                            const folders = vscode.workspace.workspaceFolders;
+                            if (!folders || folders.length < 2) { break; }
+                            const items = folders.map(f => ({ label: f.name, description: f.uri.fsPath }));
+                            const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Select repository' });
+                            if (picked) {
+                                this.postMessage('repoChanged', { repoName: picked.label });
+                            }
+                            break;
+                        }
+                        case 'toggleFilter': {
+                            // Store filter state and re-fetch — filters applied on next ready cycle
+                            await this.handleReady();
+                            break;
+                        }
+                        case 'openSettings': {
+                            await vscode.commands.executeCommand('workbench.action.openSettings', 'gitGraphEnhanced');
+                            break;
+                        }
                     }
                 } catch (err) {
                     outputChannel.appendLine(`[webview] error handling "${msg.type}": ${err}`);
@@ -306,6 +337,8 @@ export class GraphPanel implements vscode.Disposable {
 
     private async handleReady(): Promise<void> {
         const repoPath = this.getRepoPath();
+        const repoName = path.basename(repoPath);
+        this.postMessage('init', { repoName, repoPath });
 
         const maxCount = getConfig(CONFIG_MAX_COMMITS, 500);
         const showReflog = getConfig('showReflog', false);

@@ -83,6 +83,22 @@ commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile
 commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
 searchBar.setOnSortDirection((dir) => messageHandler.send('requestCommits', { sortDirection: dir }));
 
+// Toolbar initialization
+const repoPicker = document.getElementById('repo-picker') as HTMLButtonElement;
+const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
+const filterToggles = document.querySelectorAll<HTMLButtonElement>('.filter-toggle');
+
+repoPicker.addEventListener('click', () => messageHandler.send('requestRepoPicker'));
+settingsBtn.addEventListener('click', () => messageHandler.send('openSettings'));
+
+for (const btn of filterToggles) {
+    btn.addEventListener('click', () => {
+        const checked = btn.getAttribute('aria-checked') !== 'true';
+        btn.setAttribute('aria-checked', String(checked));
+        messageHandler.send('toggleFilter', { filter: btn.dataset.filter, enabled: checked });
+    });
+}
+
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
     if (e.data.type === 'themeChanged') {
         theme.refresh();

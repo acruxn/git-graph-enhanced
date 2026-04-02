@@ -33,6 +33,16 @@ export class MessageHandler {
 
     onMessage(msg: { type: string; payload?: unknown }): void {
         switch (msg.type) {
+            case 'init': {
+                const p = msg.payload as { repoName?: string };
+                if (p?.repoName) { this.updateRepoPicker(p.repoName); }
+                break;
+            }
+            case 'repoChanged': {
+                const p = msg.payload as { repoName?: string };
+                if (p?.repoName) { this.updateRepoPicker(p.repoName); }
+                break;
+            }
             case 'updateGraph': {
                 const payload = msg.payload as Parameters<GraphRenderer['render']>[0] & { tags?: Array<{ name: string }>; branches?: Array<{ name: string; isRemote: boolean }> };
                 this.renderer.render(payload);
@@ -114,6 +124,11 @@ export class MessageHandler {
 
     requestCommits(params?: { maxCount?: number; skip?: number }): void {
         this.send('requestCommits', params);
+    }
+
+    private updateRepoPicker(name: string): void {
+        const el = document.getElementById('repo-picker');
+        if (el) { el.textContent = name; }
     }
 
     private showError(payload: ErrorPayload): void {
