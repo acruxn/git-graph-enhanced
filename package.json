@@ -146,7 +146,17 @@
           "description": "Prompt for SSH key passphrase when needed"
         }
       }
-    }
+    },
+    "colors": [
+      { "id": "gitGraphEnhanced.graphLane1Color", "defaults": { "dark": "#15a0bf", "light": "#15a0bf" }, "description": "Color for graph lane 1" },
+      { "id": "gitGraphEnhanced.graphLane2Color", "defaults": { "dark": "#0669f7", "light": "#0669f7" }, "description": "Color for graph lane 2" },
+      { "id": "gitGraphEnhanced.graphLane3Color", "defaults": { "dark": "#8e00c2", "light": "#8e00c2" }, "description": "Color for graph lane 3" },
+      { "id": "gitGraphEnhanced.graphLane4Color", "defaults": { "dark": "#d90171", "light": "#d90171" }, "description": "Color for graph lane 4" },
+      { "id": "gitGraphEnhanced.graphLane5Color", "defaults": { "dark": "#cd0101", "light": "#cd0101" }, "description": "Color for graph lane 5" },
+      { "id": "gitGraphEnhanced.graphLane6Color", "defaults": { "dark": "#f25d2e", "light": "#f25d2e" }, "description": "Color for graph lane 6" },
+      { "id": "gitGraphEnhanced.graphLane7Color", "defaults": { "dark": "#7bd938", "light": "#7bd938" }, "description": "Color for graph lane 7" },
+      { "id": "gitGraphEnhanced.graphLane8Color", "defaults": { "dark": "#2ece9d", "light": "#2ece9d" }, "description": "Color for graph lane 8" }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

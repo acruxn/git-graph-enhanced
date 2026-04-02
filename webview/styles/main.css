@@ -1,3 +1,19 @@
+/* === Theme variables === */
+:root {
+    --gge-text: var(--vscode-editor-foreground, var(--vscode-foreground));
+    --gge-text-secondary: color-mix(in srgb, transparent 35%, var(--gge-text));
+    --gge-text-dimmed: color-mix(in srgb, transparent 65%, var(--gge-text));
+    --gge-bg: var(--vscode-editor-background);
+    --gge-bg-selected: var(--vscode-list-activeSelectionBackground);
+    --gge-bg-hover: var(--vscode-list-hoverBackground);
+}
+body.vscode-dark, body.vscode-high-contrast:not(.vscode-high-contrast-light) {
+    --gge-bg-surface: color-mix(in srgb, #fff 5%, var(--gge-bg));
+}
+body.vscode-light, body.vscode-high-contrast-light {
+    --gge-bg-surface: color-mix(in srgb, #000 5%, var(--gge-bg));
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -6,12 +22,76 @@ body {
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-font-family);
     font-size: var(--vscode-font-size);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* === Toolbar === */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    height: 36px;
+    background: var(--gge-bg-surface, var(--vscode-editor-background));
+    border-bottom: 1px solid var(--vscode-panel-border);
+    flex-shrink: 0;
+}
+
+.toolbar__left,
+.toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.toolbar-btn {
+    appearance: none;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 26px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    padding: 0 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+.toolbar-btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.toolbar-btn.filter-toggle[aria-checked='true'] {
+    background: var(--vscode-inputOption-activeBackground);
+    color: var(--vscode-inputOption-activeForeground);
+    border-color: var(--vscode-inputOption-activeBorder);
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--vscode-panel-border);
+    margin: 0 4px;
+}
+
+#repo-picker::after {
+    content: ' \25BE';
 }
 
 #graph-container {
     position: relative;
     width: 100vw;
-    height: 100vh;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
 }
@@ -340,18 +420,26 @@ details[open] > .file-tree-folder::before {
     background: var(--vscode-button-hoverBackground, rgba(128,128,128,0.2));
 }
 
-/* Tooltip */
-.graph-tooltip {
+/* === Commit popover === */
+.commit-popover {
     display: none;
     position: fixed;
-    padding: 4px 8px;
-    background: var(--vscode-editorHoverWidget-background);
-    border: 1px solid var(--vscode-editorHoverWidget-border);
-    font-size: 12px;
-    z-index: 200;
-    pointer-events: none;
-    max-width: 300px;
+    z-index: 1000;
+    max-width: min(92vw, 40rem);
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 8px 12px;
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground));
+    background: var(--vscode-editorHoverWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,0.16));
+    pointer-events: auto;
 }
+.popover-sha { font-family: var(--vscode-editor-font-family); opacity: 0.7; font-size: 0.9em; }
+.popover-message { margin: 4px 0; font-weight: 500; }
+.popover-meta { font-size: 0.9em; opacity: 0.8; }
+.popover-refs { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
 
 /* Context menu */
 .context-menu {
@@ -386,4 +474,49 @@ details[open] > .file-tree-folder::before {
     font-family: var(--vscode-editor-font-family);
     font-size: 12px;
 }
+
+/* === Commit detail polish === */
+.commit-stats { display: flex; gap: 12px; margin: 6px 0; font-size: 0.9em; }
+.stat-add { color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043); }
+.stat-del { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
+.stat-files { opacity: 0.7; }
+
+.gpg-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.gpg-good { background: rgba(46,160,67,0.15); color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043); }
+.gpg-bad { background: rgba(248,81,73,0.15); color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
+.gpg-unknown { background: rgba(128,128,128,0.15); color: var(--vscode-descriptionForeground); }
+
+.commit-branch-labels { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+
+.branch-combined {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 3px;
+    font-size: 0.85em;
+    overflow: hidden;
+}
+.branch-combined .branch-local,
+.branch-combined .branch-remote {
+    padding: 1px 6px;
+}
+.branch-combined .branch-local {
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}
+.branch-combined .branch-remote {
+    background: rgba(128,128,128,0.2);
+    color: var(--vscode-descriptionForeground);
+}
+
+.file-stat { margin-left: auto; font-size: 0.85em; white-space: nowrap; }
+.file-stat-add { color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043); }
+.file-stat-del { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
 
