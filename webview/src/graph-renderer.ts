@@ -292,7 +292,7 @@ export class GraphRenderer {
 
     private getColumnPositions(width: number): { sha: number; message: number; author: number; date: number } {
         const sha = this.textLeft;
-        const message = sha + this.columnWidths.sha;
+        const message = sha + this.columnWidths.sha + 8;
         const date = width - this.columnWidths.date;
         const author = date - this.columnWidths.author;
         return { sha, message, author, date };

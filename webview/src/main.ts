@@ -32,7 +32,16 @@ searchBar.setOnAuthorFilter((author) => {
         renderer.setFilteredIndices(null);
         return;
     }
-    messageHandler.send('filterByAuthor', { author });
+    const query = author.toLowerCase();
+    const commits = renderer.getCommits();
+    const indices: number[] = [];
+    for (let i = 0; i < commits.length; i++) {
+        if (commits[i].author.name.toLowerCase().includes(query) ||
+            commits[i].author.email.toLowerCase().includes(query)) {
+            indices.push(i);
+        }
+    }
+    renderer.setFilteredIndices(indices.length > 0 ? indices : []);
 });
 
 searchBar.setOnTagFilter((tagName) => {
@@ -72,6 +81,7 @@ searchBar.setOnBranchGroupFilter((pattern) => {
 
 commitPanel.setOnFileClick((filePath, commitId) => messageHandler.send('openFile', { filePath, commitId }));
 commitPanel.setOnOpenExternal((url) => messageHandler.send('openExternal', { url }));
+commitPanel.setOnRequestPreview((filePath, commitId) => messageHandler.send('requestFileContent', { filePath, commitId }));
 searchBar.setOnSortDirection((dir) => messageHandler.send('requestCommits', { sortDirection: dir }));
 
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
