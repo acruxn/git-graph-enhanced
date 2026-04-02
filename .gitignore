@@ -27,6 +27,9 @@ docs/misc/
 # Archived docs (internal reference, not published)
 docs/archive/
 
+# Research notes (competitive analysis, internal)
+docs/research/
+
 # Test fixtures (generated)
 tests/fixtures/
 image*.png
