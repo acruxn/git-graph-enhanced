@@ -8,6 +8,7 @@ import { getConfig, CONFIG_MAX_COMMITS } from './config';
 import { outputChannel } from './extension';
 import { fetchAvatars, fetchAvatarDataUri } from './avatar';
 import { detectProvider, buildPrUrl } from './pr-provider';
+import { checkoutBranch, checkoutCommit, createBranch, createTag, fetchRemote } from './git-operations';
 
 export class GraphPanel implements vscode.Disposable {
     private static panels = new Map<string, GraphPanel>();
@@ -119,7 +120,10 @@ export class GraphPanel implements vscode.Disposable {
     <div id="toolbar" class="toolbar">
         <div class="toolbar__left">
             <button id="repo-picker" class="toolbar-btn" title="Switch repository"></button>
+            <span id="branch-state" class="branch-state"></span>
+            <button id="fetch-btn" class="toolbar-btn" title="Fetch">&#x21BB; Fetch</button>
         </div>
+        <div class="toolbar__center" id="toolbar-center"></div>
         <div class="toolbar__right">
             <button class="toolbar-btn filter-toggle" data-filter="local" aria-checked="true" title="Local branches">Local</button>
             <button class="toolbar-btn filter-toggle" data-filter="remote" aria-checked="true" title="Remote branches">Remote</button>
@@ -273,6 +277,65 @@ export class GraphPanel implements vscode.Disposable {
                             const delResult = await this.backend.request('deleteBranches', { repoPath, branches: p.branches });
                             this.postMessage('branchesDeleted', delResult);
                             await this.handleReady();
+                            break;
+                        }
+                        case 'checkout': {
+                            const p = msg.payload as { ref: string; detached?: boolean };
+                            const repoPath = this.getRepoPath();
+                            const result = p.detached
+                                ? await checkoutCommit(repoPath, p.ref)
+                                : await checkoutBranch(repoPath, p.ref);
+                            if (result.success) {
+                                await this.handleReady();
+                            } else {
+                                vscode.window.showErrorMessage(`Checkout failed: ${result.stderr}`);
+                            }
+                            break;
+                        }
+                        case 'createBranch': {
+                            const { commitId } = msg.payload as { commitId: string };
+                            const name = await vscode.window.showInputBox({
+                                prompt: 'Branch name',
+                                validateInput: (v) => /^[a-zA-Z0-9._\-/]+$/.test(v) ? null : 'Invalid branch name',
+                            });
+                            if (!name) { break; }
+                            const result = await createBranch(this.getRepoPath(), name, commitId);
+                            if (result.success) {
+                                await this.handleReady();
+                            } else {
+                                vscode.window.showErrorMessage(`Create branch failed: ${result.stderr}`);
+                            }
+                            break;
+                        }
+                        case 'createTag': {
+                            const { commitId } = msg.payload as { commitId: string };
+                            const name = await vscode.window.showInputBox({
+                                prompt: 'Tag name',
+                                validateInput: (v) => /^[a-zA-Z0-9._\-/]+$/.test(v) ? null : 'Invalid tag name',
+                            });
+                            if (!name) { break; }
+                            const message = await vscode.window.showInputBox({
+                                prompt: 'Tag message (leave empty for lightweight tag)',
+                            });
+                            const result = await createTag(this.getRepoPath(), name, commitId, message || undefined);
+                            if (result.success) {
+                                await this.handleReady();
+                            } else {
+                                vscode.window.showErrorMessage(`Create tag failed: ${result.stderr}`);
+                            }
+                            break;
+                        }
+                        case 'fetch': {
+                            const repoPath = this.getRepoPath();
+                            this.postMessage('fetchStarted', {});
+                            const result = await fetchRemote(repoPath);
+                            if (result.success) {
+                                this.postMessage('fetchCompleted', { lastFetched: Date.now() });
+                                await this.handleReady();
+                            } else {
+                                this.postMessage('fetchCompleted', { error: result.stderr });
+                                vscode.window.showErrorMessage(`Fetch failed: ${result.stderr}`);
+                            }
                             break;
                         }
                         case 'openTerminal': {
