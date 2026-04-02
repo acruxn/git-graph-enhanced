@@ -322,11 +322,10 @@ export class CommitPanel {
     }
 
     private renderTree(node: TreeNode, commitId: string): HTMLElement {
-        const ul = document.createElement('ul');
-        ul.className = 'commit-panel-files';
+        const container = document.createElement('div');
+        container.className = 'file-tree';
 
         for (const [, child] of [...node.children.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-            // Collapse single-child folder chains
             let collapsed = child;
             let prefix = collapsed.name;
             while (collapsed.children.size === 1 && collapsed.files.length === 0) {
@@ -335,34 +334,45 @@ export class CommitPanel {
                 collapsed = only;
             }
 
-            const li = document.createElement('li');
+            const item = document.createElement('div');
+            item.className = 'file-tree-item';
             const details = document.createElement('details');
             details.open = true;
             const summary = document.createElement('summary');
+            summary.className = 'file-tree-folder';
             const count = this.countFiles(collapsed);
-            summary.textContent = `${prefix}/ (${count} file${count !== 1 ? 's' : ''})`;
+            const label = document.createElement('span');
+            label.textContent = `${prefix}/`;
+            summary.appendChild(label);
+            const countSpan = document.createElement('span');
+            countSpan.className = 'file-tree-count';
+            countSpan.textContent = ` (${count})`;
+            summary.appendChild(countSpan);
             details.appendChild(summary);
             details.appendChild(this.renderTree(collapsed, commitId));
-            li.appendChild(details);
-            ul.appendChild(li);
+            item.appendChild(details);
+            container.appendChild(item);
         }
 
         for (const file of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
-            const li = document.createElement('li');
+            const item = document.createElement('div');
+            item.className = 'file-tree-item file-tree-leaf';
             const status = document.createElement('span');
             status.className = `file-status file-status-${file.status}`;
             status.textContent = this.accessibilityMode
                 ? ({ added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed' }[file.status] ?? file.status)
                 : file.status[0].toUpperCase();
-            li.appendChild(status);
+            item.appendChild(status);
+            const icon = document.createTextNode('\uD83D\uDCC4 ');
+            item.appendChild(icon);
             const btn = document.createElement('button');
             btn.className = 'file-link';
             btn.textContent = file.name;
             btn.addEventListener('click', () => this.onFileClick?.(file.path, commitId));
-            li.appendChild(btn);
-            ul.appendChild(li);
+            item.appendChild(btn);
+            container.appendChild(item);
         }
 
-        return ul;
+        return container;
     }
 }

@@ -169,6 +169,76 @@ body {
     font-size: 12px;
 }
 
+/* File tree */
+.file-tree {
+    padding-left: 16px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+}
+
+.file-tree > .file-tree-item:first-child {
+    /* no top connector for first root item */
+}
+
+.file-tree-item {
+    position: relative;
+    padding-left: 20px;
+}
+
+.file-tree-item::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    height: 100%;
+    border-left: 1px solid var(--vscode-tree-indentGuidesStroke, rgba(128,128,128,0.3));
+}
+
+.file-tree-item:last-child::before {
+    height: 50%;
+}
+
+.file-tree-item::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 10px;
+    border-top: 1px solid var(--vscode-tree-indentGuidesStroke, rgba(128,128,128,0.3));
+}
+
+.file-tree-leaf {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.file-tree-folder {
+    cursor: pointer;
+    list-style: none;
+    padding: 2px 0;
+    user-select: none;
+}
+
+.file-tree-folder::-webkit-details-marker {
+    display: none;
+}
+
+.file-tree-folder::before {
+    content: '\1F4C1 ';
+}
+
+details[open] > .file-tree-folder::before {
+    content: '\1F4C2 ';
+}
+
+.file-tree-count {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
 .file-status {
     width: 16px;
     text-align: center;
