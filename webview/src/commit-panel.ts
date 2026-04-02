@@ -21,9 +21,18 @@ interface FileDiff {
     deletions: number;
 }
 
+interface Branch {
+    name: string;
+    isRemote: boolean;
+    isHead: boolean;
+    commitId: string;
+    upstream?: string;
+}
+
 export interface CommitDetailData {
     commit: Commit;
     files: FileDiff[];
+    branches?: Branch[];
 }
 
 interface TreeNode {
@@ -146,12 +155,54 @@ export class CommitPanel {
         }
         left.appendChild(msg);
 
-        // GPG
+        // File stats summary
+        if (data.files && data.files.length > 0) {
+            const stats = document.createElement('div');
+            stats.className = 'commit-stats';
+            let totalAdd = 0, totalDel = 0;
+            for (const f of data.files) { totalAdd += f.additions; totalDel += f.deletions; }
+            if (totalAdd > 0) {
+                const add = document.createElement('span');
+                add.className = 'stat-add';
+                add.textContent = `+${totalAdd}`;
+                stats.appendChild(add);
+            }
+            if (totalDel > 0) {
+                const del = document.createElement('span');
+                del.className = 'stat-del';
+                del.textContent = `-${totalDel}`;
+                stats.appendChild(del);
+            }
+            const fileCount = document.createElement('span');
+            fileCount.className = 'stat-files';
+            fileCount.textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''}`;
+            stats.appendChild(fileCount);
+            left.appendChild(stats);
+        }
+
+        // GPG badge
         if (data.commit.gpgStatus && data.commit.gpgStatus !== 'none') {
-            const sig = document.createElement('div');
-            sig.className = 'commit-panel-signature';
-            sig.textContent = `\uD83D\uDD12 Signed${data.commit.gpgSigner ? ` by ${data.commit.gpgSigner}` : ''}`;
-            left.appendChild(sig);
+            const badge = document.createElement('span');
+            const status = data.commit.gpgStatus;
+            badge.className = `gpg-badge gpg-${status}`;
+            const icon = status === 'good' ? '\u2713' : status === 'bad' ? '\u2717' : '?';
+            const label = status === 'good' ? 'Verified' : status === 'bad' ? 'Invalid' : 'Unverified';
+            badge.textContent = `${icon} ${label}`;
+            if (data.commit.gpgSigner) {
+                badge.title = `Signed by ${data.commit.gpgSigner}`;
+            }
+            const gpgLine = document.createElement('div');
+            gpgLine.className = 'commit-panel-signature';
+            gpgLine.appendChild(badge);
+            left.appendChild(gpgLine);
+        }
+
+        // Branch/remote labels
+        if (data.branches && data.branches.length > 0) {
+            const labels = document.createElement('div');
+            labels.className = 'commit-branch-labels';
+            this.renderBranchLabels(data.branches, labels);
+            left.appendChild(labels);
         }
 
         layout.appendChild(left);
@@ -290,8 +341,11 @@ export class CommitPanel {
                         p.appendChild(code);
                         break;
                     }
-                    default:
-                        p.appendChild(document.createTextNode(seg.content));
+                    default: {
+                        const span = document.createElement('span');
+                        this.renderLinkedText(seg.content, span);
+                        p.appendChild(span);
+                    }
                 }
             }
             container.appendChild(p);
@@ -372,9 +426,78 @@ export class CommitPanel {
             btn.addEventListener('click', () => this.onFileClick?.(file.path, commitId));
             item.appendChild(btn);
 
+            if (file.additions > 0 || file.deletions > 0) {
+                const stat = document.createElement('span');
+                stat.className = 'file-stat';
+                if (file.additions > 0) {
+                    const a = document.createElement('span');
+                    a.className = 'file-stat-add';
+                    a.textContent = `+${file.additions}`;
+                    stat.appendChild(a);
+                }
+                if (file.additions > 0 && file.deletions > 0) {
+                    stat.appendChild(document.createTextNode(' '));
+                }
+                if (file.deletions > 0) {
+                    const d = document.createElement('span');
+                    d.className = 'file-stat-del';
+                    d.textContent = `-${file.deletions}`;
+                    stat.appendChild(d);
+                }
+                item.appendChild(stat);
+            }
+
             container.appendChild(item);
         }
 
         return container;
+    }
+
+    private renderBranchLabels(branches: Branch[], container: HTMLElement): void {
+        const locals = branches.filter(b => !b.isRemote);
+        const remotes = branches.filter(b => b.isRemote);
+        const usedRemotes = new Set<string>();
+
+        for (const local of locals) {
+            const matchingRemote = remotes.find(r => {
+                const remoteBranch = r.name.includes('/') ? r.name.slice(r.name.indexOf('/') + 1) : r.name;
+                return remoteBranch === local.name;
+            });
+
+            if (matchingRemote) {
+                usedRemotes.add(matchingRemote.name);
+                const pill = document.createElement('span');
+                pill.className = 'branch-combined';
+                const localSpan = document.createElement('span');
+                localSpan.className = 'branch-local';
+                localSpan.textContent = local.name;
+                const remoteSpan = document.createElement('span');
+                remoteSpan.className = 'branch-remote';
+                const remoteName = matchingRemote.name.includes('/') ? matchingRemote.name.slice(0, matchingRemote.name.indexOf('/')) : matchingRemote.name;
+                remoteSpan.textContent = remoteName;
+                pill.appendChild(localSpan);
+                pill.appendChild(remoteSpan);
+                container.appendChild(pill);
+            } else {
+                const pill = document.createElement('span');
+                pill.className = 'branch-combined';
+                const localSpan = document.createElement('span');
+                localSpan.className = 'branch-local';
+                localSpan.textContent = local.name;
+                pill.appendChild(localSpan);
+                container.appendChild(pill);
+            }
+        }
+
+        for (const remote of remotes) {
+            if (usedRemotes.has(remote.name)) { continue; }
+            const pill = document.createElement('span');
+            pill.className = 'branch-combined';
+            const remoteSpan = document.createElement('span');
+            remoteSpan.className = 'branch-remote';
+            remoteSpan.textContent = remote.name;
+            pill.appendChild(remoteSpan);
+            container.appendChild(pill);
+        }
     }
 }
