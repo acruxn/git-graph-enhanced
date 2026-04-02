@@ -83,6 +83,79 @@ pub fn get_remote_url(repo_path: &Path, remote_name: &str) -> CoreResult<String>
     Ok(url.to_bstring().to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchState {
+    pub head: String,
+    pub is_detached: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+}
+
+pub fn get_branch_state(repo_path: &Path) -> CoreResult<BranchState> {
+    let repo = open_repo(repo_path)?;
+
+    match repo.head_ref() {
+        Ok(Some(reference)) => {
+            let name = reference.name().as_bstr().to_string();
+            let name = name
+                .strip_prefix("refs/heads/")
+                .unwrap_or(&name)
+                .to_string();
+
+            let (ahead, behind, upstream) = match std::process::Command::new("git")
+                .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+                .current_dir(repo_path)
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    let s = String::from_utf8_lossy(&output.stdout);
+                    let parts: Vec<&str> = s.trim().split('\t').collect();
+                    let a = parts.first().and_then(|v| v.parse().ok()).unwrap_or(0u32);
+                    let b = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0u32);
+                    let up = std::process::Command::new("git")
+                        .args([
+                            "rev-parse",
+                            "--abbrev-ref",
+                            "--symbolic-full-name",
+                            "@{upstream}",
+                        ])
+                        .current_dir(repo_path)
+                        .output()
+                        .ok()
+                        .filter(|o| o.status.success())
+                        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+                    (a, b, up)
+                }
+                _ => (0, 0, None),
+            };
+
+            Ok(BranchState {
+                head: name,
+                is_detached: false,
+                upstream,
+                ahead,
+                behind,
+            })
+        }
+        _ => {
+            let short = repo
+                .head_id()
+                .map(|id| id.to_string()[..7].to_string())
+                .unwrap_or_else(|_| "unknown".to_string());
+            Ok(BranchState {
+                head: short,
+                is_detached: true,
+                upstream: None,
+                ahead: 0,
+                behind: 0,
+            })
+        }
+    }
+}
+
 pub fn delete_branch(repo_path: &Path, branch_name: &str) -> CoreResult<()> {
     let repo = open_repo(repo_path)?;
     let ref_name = format!("refs/heads/{branch_name}");

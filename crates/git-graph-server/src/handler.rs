@@ -24,6 +24,7 @@ pub fn handle_request(req: &JsonRpcRequest) -> JsonRpcResponse {
         "getReflog" => handle_get_reflog(req),
         "getRemoteUrl" => handle_get_remote_url(req),
         "deleteBranches" => handle_delete_branches(req),
+        "getBranchState" => handle_get_branch_state(req),
         "getRepoState" => handle_get_repo_state(req),
         "abortOperation" => handle_abort_operation(req),
         _ => JsonRpcResponse::error(req.id, -32601, format!("method not found: {}", req.method)),
@@ -323,6 +324,17 @@ fn handle_delete_branches(req: &JsonRpcRequest) -> JsonRpcResponse {
         .collect();
 
     JsonRpcResponse::success(req.id, json!({ "results": results }))
+}
+
+fn handle_get_branch_state(req: &JsonRpcRequest) -> JsonRpcResponse {
+    let repo_path = match req.params.get("repoPath").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return JsonRpcResponse::error(req.id, -32602, "missing param: repoPath"),
+    };
+    match git_graph_core::branch::get_branch_state(Path::new(repo_path)) {
+        Ok(state) => JsonRpcResponse::success(req.id, serde_json::to_value(state).unwrap()),
+        Err(e) => core_error_to_response(req.id, &e),
+    }
 }
 
 fn handle_get_repo_state(req: &JsonRpcRequest) -> JsonRpcResponse {
