@@ -112,6 +112,10 @@ export class GraphRenderer {
     private activeContextMenu: HTMLElement | null = null;
     private spacer: HTMLElement | null = null;
     private expandedHeight = 0;
+    private columnWidths = { graph: 60, sha: 80, author: 160, date: 120 };
+    private dragCol: string | null = null;
+    private dragStartX = 0;
+    private dragStartWidth = 0;
 
     constructor(canvas: HTMLCanvasElement, theme: ThemeManager) {
         this.ctx = canvas.getContext('2d')!;
@@ -141,6 +145,7 @@ export class GraphRenderer {
         canvas.addEventListener('click', (e) => this.onClick(e));
         canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
         canvas.addEventListener('mouseleave', () => this.hideTooltip());
+        canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
         canvas.addEventListener('contextmenu', (e) => this.onContextMenu(e));
         this.container.setAttribute('tabindex', '0');
         this.container.addEventListener('keydown', (e) => this.onKeyDown(e));
@@ -175,7 +180,7 @@ export class GraphRenderer {
     }
 
     private rowY(index: number): number {
-        const base = index * ROW_HEIGHT;
+        const base = HEADER_HEIGHT + index * ROW_HEIGHT;
         if (this.selectedIndex >= 0 && this.expandedHeight > 0 && index > this.selectedIndex) {
             return base + this.expandedHeight;
         }
@@ -183,11 +188,14 @@ export class GraphRenderer {
     }
 
     private get totalHeight(): number {
-        return this.commits.length * ROW_HEIGHT + (this.selectedIndex >= 0 ? this.expandedHeight : 0);
+        return HEADER_HEIGHT + this.commits.length * ROW_HEIGHT + (this.selectedIndex >= 0 ? this.expandedHeight : 0);
     }
 
-    setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight'; accessibilityMode?: boolean }): void {
+    setConfig(cfg: { showDate: boolean; showAuthor: boolean; graphStyle?: 'curved' | 'angular' | 'straight'; accessibilityMode?: boolean; columnWidths?: Record<string, number> }): void {
         this.config = { ...this.config, ...cfg };
+        if (cfg.columnWidths) {
+            Object.assign(this.columnWidths, cfg.columnWidths);
+        }
         this.scheduleRedraw();
     }
 
@@ -281,6 +289,25 @@ export class GraphRenderer {
         return GRAPH_LEFT + (this.maxColumn + 2) * COL_WIDTH;
     }
 
+    private getColumnPositions(width: number): { sha: number; message: number; author: number; date: number } {
+        const sha = this.textLeft;
+        const message = sha + this.columnWidths.sha;
+        const date = width - this.columnWidths.date;
+        const author = date - this.columnWidths.author;
+        return { sha, message, author, date };
+    }
+
+    private getColumnBorders(width: number): Array<{ x: number; col: string }> {
+        const pos = this.getColumnPositions(width);
+        const borders: Array<{ x: number; col: string }> = [
+            { x: pos.sha, col: 'graph' },
+            { x: pos.message, col: 'sha' },
+        ];
+        if (this.config.showAuthor) { borders.push({ x: pos.author, col: 'author' }); }
+        if (this.config.showDate) { borders.push({ x: pos.date, col: 'date' }); }
+        return borders;
+    }
+
     private get viewportHeight(): number {
         return this.container.clientHeight;
     }
@@ -292,10 +319,10 @@ export class GraphRenderer {
     private visibleRange(): [number, number] {
         const scrollY = this.scrollTop;
         const vpBottom = scrollY + this.viewportHeight;
-        // Find start: binary-ish but simple — rows before expansion are dense
-        let start = Math.floor(scrollY / ROW_HEIGHT);
+        // Find start: account for header offset
+        let start = Math.floor(Math.max(0, scrollY - HEADER_HEIGHT) / ROW_HEIGHT);
         if (this.selectedIndex >= 0 && this.expandedHeight > 0 && start > this.selectedIndex) {
-            start = Math.floor((scrollY - this.expandedHeight) / ROW_HEIGHT);
+            start = Math.floor(Math.max(0, scrollY - HEADER_HEIGHT - this.expandedHeight) / ROW_HEIGHT);
         }
         start = Math.max(0, start);
         // Find end
@@ -358,7 +385,8 @@ export class GraphRenderer {
 
     private indexFromY(clientY: number): number {
         const rect = this.ctx.canvas.getBoundingClientRect();
-        const y = clientY - rect.top + this.scrollTop;
+        const y = clientY - rect.top + this.scrollTop - HEADER_HEIGHT;
+        if (y < 0) { return -1; }
         if (this.selectedIndex >= 0 && this.expandedHeight > 0) {
             const gapStart = (this.selectedIndex + 1) * ROW_HEIGHT;
             const gapEnd = gapStart + this.expandedHeight;
@@ -395,11 +423,66 @@ export class GraphRenderer {
     }
 
     private onMouseMove(e: MouseEvent): void {
+        if (this.dragCol) {
+            const delta = e.clientX - this.dragStartX;
+            const col = this.dragCol as keyof typeof this.columnWidths;
+            // For author/date, dragging left increases width
+            const newWidth = col === 'author' || col === 'date'
+                ? Math.max(40, this.dragStartWidth - delta)
+                : Math.max(40, this.dragStartWidth + delta);
+            this.columnWidths[col] = newWidth;
+            this.scheduleRedraw();
+            return;
+        }
+
+        const rect = this.ctx.canvas.getBoundingClientRect();
+        const localY = e.clientY - rect.top;
+        if (localY < HEADER_HEIGHT) {
+            const localX = e.clientX - rect.left;
+            const dpr = window.devicePixelRatio || 1;
+            const width = this.ctx.canvas.width / dpr;
+            const borders = this.getColumnBorders(width);
+            const near = borders.some(b => Math.abs(localX - b.x) <= 3);
+            this.ctx.canvas.style.cursor = near ? 'col-resize' : 'default';
+            return;
+        }
+        this.ctx.canvas.style.cursor = 'default';
+
         const idx = this.indexFromY(e.clientY);
         if (idx === this.hoverIndex) { return; }
         this.hoverIndex = (idx >= 0 && idx < this.commits.length) ? idx : -1;
         this.scheduleRedraw();
         this.updateTooltip(e, this.hoverIndex);
+    }
+
+    private onMouseDown(e: MouseEvent): void {
+        const rect = this.ctx.canvas.getBoundingClientRect();
+        const localY = e.clientY - rect.top;
+        if (localY >= HEADER_HEIGHT) { return; }
+
+        const localX = e.clientX - rect.left;
+        const dpr = window.devicePixelRatio || 1;
+        const width = this.ctx.canvas.width / dpr;
+        const borders = this.getColumnBorders(width);
+        for (const b of borders) {
+            if (Math.abs(localX - b.x) <= 3) {
+                e.preventDefault();
+                this.dragCol = b.col;
+                this.dragStartX = e.clientX;
+                this.dragStartWidth = this.columnWidths[b.col as keyof typeof this.columnWidths];
+                const onMove = (ev: MouseEvent) => this.onMouseMove(ev);
+                const onUp = () => {
+                    this.dragCol = null;
+                    this.ctx.canvas.style.cursor = 'default';
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                    this.send('saveColumnWidths', { columnWidths: { ...this.columnWidths } });
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+                return;
+            }
+        }
     }
 
     // --- Tooltip ---
@@ -760,10 +843,7 @@ export class GraphRenderer {
             let x = textLeft;
             x = this.drawBadges(ctx, commit.id, x, y, colors);
 
-            const shaCol = x;
-            const messageCol = shaCol + 80;
-            const authorCol = width - 280;
-            const dateCol = width - 120;
+            const { sha: shaCol, message: messageCol, author: authorCol, date: dateCol } = this.getColumnPositions(width);
 
             // Short SHA
             ctx.fillStyle = fg;
@@ -810,13 +890,35 @@ export class GraphRenderer {
             if (this.config.showDate) {
                 ctx.globalAlpha = 0.7;
                 ctx.font = '12px system-ui, -apple-system, sans-serif';
-                ctx.fillText(new Date(commit.timestamp * 1000).toLocaleDateString(), dateCol, y + 4);
+                ctx.fillText(this.formatDate(commit.timestamp, width - dateCol), dateCol, y + 4);
             }
             ctx.globalAlpha = 1;
         }
 
         this.drawHeader(width);
         ctx.restore();
+    }
+
+    private formatDate(timestamp: number, availableWidth: number): string {
+        const d = new Date(timestamp * 1000);
+        const diffMs = Date.now() - d.getTime();
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffDays === 0) {
+            const hours = Math.floor(diffMs / 3600000);
+            if (hours === 0) { return `${Math.max(1, Math.floor(diffMs / 60000))}m ago`; }
+            return `${hours}h ago`;
+        }
+        if (diffDays === 1) { return 'Yesterday'; }
+        if (diffDays < 7) { return `${diffDays}d ago`; }
+
+        if (availableWidth > 200) {
+            return d.toLocaleString('sv-SE');
+        }
+        if (availableWidth > 140) {
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        }
+        return d.toLocaleDateString();
     }
 
     private drawHeader(width: number): void {
@@ -831,10 +933,7 @@ export class GraphRenderer {
         ctx.lineTo(width, HEADER_HEIGHT);
         ctx.stroke();
 
-        const shaCol = this.textLeft;
-        const messageCol = shaCol + 80;
-        const authorCol = width - 280;
-        const dateCol = width - 120;
+        const { sha: shaCol, message: messageCol, author: authorCol, date: dateCol } = this.getColumnPositions(width);
 
         ctx.fillStyle = theme.foreground;
         ctx.globalAlpha = 0.6;
@@ -849,6 +948,15 @@ export class GraphRenderer {
             ctx.fillText('Date', dateCol, HEADER_HEIGHT - 6);
         }
         ctx.globalAlpha = 1;
+
+        // Column border lines
+        ctx.strokeStyle = 'rgba(128,128,128,0.2)';
+        for (const b of this.getColumnBorders(width)) {
+            ctx.beginPath();
+            ctx.moveTo(b.x, 0);
+            ctx.lineTo(b.x, HEADER_HEIGHT);
+            ctx.stroke();
+        }
     }
 
     private drawEdges(visStart: number, visEnd: number, scrollY: number, colors: readonly string[]): void {
