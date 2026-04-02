@@ -4,14 +4,11 @@
 
 ## About
 
-Git Graph Enhanced — a high-performance VS Code extension for git history visualization (MIT license). Rust backend + TypeScript extension + Canvas webview.
+Git Graph Enhanced — a high-performance VS Code extension for git history visualization. Original implementation (MIT license). Rust backend + TypeScript extension + Canvas webview.
 
-## Intellectual Property
+## CRITICAL: Intellectual Property
 
-This is an original implementation. When studying competitor extensions:
-- ✅ Study UX patterns, feature design, and edge case handling
-- ✅ Reimplement ideas using our own architecture and code
-- ❌ Do NOT copy code verbatim from GPL-licensed projects — license incompatibility
+This is an original implementation. Do not copy code verbatim from GPL-licensed extensions — license incompatibility.
 
 ## Setup Commands
 
