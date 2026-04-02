@@ -26,12 +26,20 @@ const webview = await esbuild.context({
   format: 'iife',
 });
 
+const devData = await esbuild.context({
+  ...shared,
+  entryPoints: ['webview/dev-data.ts'],
+  outfile: 'webview/dev-data.js',
+  platform: 'browser',
+  format: 'iife',
+});
+
 if (watch) {
-  await Promise.all([extensionHost.watch(), webview.watch()]);
+  await Promise.all([extensionHost.watch(), webview.watch(), devData.watch()]);
   console.log('Watching for changes...');
 } else {
   const start = Date.now();
-  await Promise.all([extensionHost.rebuild(), webview.rebuild()]);
+  await Promise.all([extensionHost.rebuild(), webview.rebuild(), devData.rebuild()]);
   console.log(`Build complete in ${Date.now() - start}ms`);
-  await Promise.all([extensionHost.dispose(), webview.dispose()]);
+  await Promise.all([extensionHost.dispose(), webview.dispose(), devData.dispose()]);
 }

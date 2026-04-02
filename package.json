@@ -161,6 +161,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
+    "dev:webview": "node esbuild.mjs && cp dist/webview.js webview/webview.js && npx serve webview -p 3000",
     "package": "vsce package",
     "package:target": "vsce package --target",
     "test": "vitest run"

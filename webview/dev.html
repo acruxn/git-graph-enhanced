@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Graph Enhanced — Dev</title>
+    <link rel="stylesheet" href="./styles/main.css">
+    <style>
+        :root {
+            --vscode-editor-background: #1e1e1e;
+            --vscode-editor-foreground: #cccccc;
+            --vscode-foreground: #cccccc;
+            --vscode-editor-font-family: 'Cascadia Code', Consolas, monospace;
+            --vscode-font-family: system-ui, sans-serif;
+            --vscode-font-size: 13px;
+            --vscode-list-hoverBackground: rgba(255,255,255,0.04);
+            --vscode-list-activeSelectionBackground: #04395e;
+            --vscode-panel-border: #2b2b2b;
+            --vscode-focusBorder: #007fd4;
+            --vscode-toolbar-hoverBackground: rgba(90,93,94,0.31);
+            --vscode-inputOption-activeBackground: rgba(0,127,212,0.4);
+            --vscode-inputOption-activeForeground: #ffffff;
+            --vscode-inputOption-activeBorder: rgba(0,127,212,0.4);
+            --vscode-editorHoverWidget-background: #252526;
+            --vscode-editorHoverWidget-border: #454545;
+            --vscode-editorHoverWidget-foreground: #cccccc;
+            --vscode-widget-shadow: rgba(0,0,0,0.36);
+            --vscode-badge-background: #4d4d4d;
+            --vscode-badge-foreground: #ffffff;
+            --vscode-descriptionForeground: rgba(204,204,204,0.7);
+            --vscode-scrollbarSlider-background: rgba(121,121,121,0.4);
+            --vscode-scrollbarSlider-hoverBackground: rgba(100,100,100,0.7);
+            --vscode-scrollbarSlider-activeBackground: rgba(191,191,191,0.4);
+            --vscode-gitDecoration-addedResourceForeground: #2ea043;
+            --vscode-gitDecoration-deletedResourceForeground: #f85149;
+            --vscode-gitDecoration-modifiedResourceForeground: #d29922;
+            --vscode-gitDecoration-renamedResourceForeground: #73c991;
+            --vscode-input-background: #3c3c3c;
+            --vscode-input-foreground: #cccccc;
+            --vscode-input-border: #3c3c3c;
+            --vscode-dropdown-background: #3c3c3c;
+            --vscode-dropdown-foreground: #cccccc;
+            --vscode-dropdown-border: #3c3c3c;
+            --vscode-menu-background: #252526;
+            --vscode-menu-foreground: #cccccc;
+            --vscode-menu-border: #454545;
+            --vscode-menu-selectionBackground: #04395e;
+            --vscode-menu-selectionForeground: #ffffff;
+            --vscode-textLink-foreground: #3794ff;
+            --vscode-textCodeBlock-background: #2a2a2a;
+            --vscode-inputValidation-errorBackground: #5a1d1d;
+            --vscode-inputValidation-errorForeground: #cccccc;
+            --vscode-inputValidation-warningBackground: #352a05;
+            --vscode-inputValidation-warningBorder: #9d8012;
+        }
+        #dev-controls {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            z-index: 999;
+            display: flex;
+            gap: 6px;
+        }
+        #dev-controls button {
+            padding: 4px 10px;
+            background: #333;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        #dev-controls button:hover { background: #444; }
+    </style>
+</head>
+<body class="vscode-dark">
+    <script>
+    // VS Code API shim — must be defined before the webview bundle loads
+    function acquireVsCodeApi() {
+        return {
+            postMessage(msg) {
+                console.log('[webview → ext]', msg.type, msg.payload);
+                if (msg.type === 'ready') {
+                    window.dispatchEvent(new MessageEvent('message', { data: window.__MOCK_INIT__ }));
+                }
+                if (msg.type === 'requestCommitDetail') {
+                    window.dispatchEvent(new MessageEvent('message', { data: window.__MOCK_DETAIL__ }));
+                }
+            }
+        };
+    }
+    </script>
+
+    <div id="toolbar" class="toolbar">
+        <div class="toolbar__left">
+            <button id="repo-picker" class="toolbar-btn" title="Switch repository">my-project</button>
+        </div>
+        <div class="toolbar__right">
+            <button class="toolbar-btn filter-toggle" data-filter="local" aria-checked="true" title="Local branches">Local</button>
+            <button class="toolbar-btn filter-toggle" data-filter="remote" aria-checked="true" title="Remote branches">Remote</button>
+            <button class="toolbar-btn filter-toggle" data-filter="tags" aria-checked="true" title="Tags">Tags</button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" id="settings-btn" title="Settings">&#x2699;</button>
+        </div>
+    </div>
+    <div id="error-banner" role="alert"></div>
+    <div id="graph-container">
+        <canvas id="graph-canvas" aria-label="Git commit graph"></canvas>
+    </div>
+
+    <div id="dev-controls">
+        <button id="theme-toggle">☀ Light</button>
+    </div>
+
+    <script src="./dev-data.js"></script>
+    <script src="./webview.js"></script>
+    <script>
+    // Theme toggle for dev testing
+    const LIGHT_OVERRIDES = {
+        '--vscode-editor-background': '#ffffff',
+        '--vscode-editor-foreground': '#333333',
+        '--vscode-foreground': '#333333',
+        '--vscode-list-hoverBackground': 'rgba(0,0,0,0.04)',
+        '--vscode-list-activeSelectionBackground': '#e8e8e8',
+        '--vscode-panel-border': '#e0e0e0',
+        '--vscode-focusBorder': '#0066b8',
+        '--vscode-editorHoverWidget-background': '#f3f3f3',
+        '--vscode-editorHoverWidget-border': '#c8c8c8',
+        '--vscode-editorHoverWidget-foreground': '#333333',
+        '--vscode-descriptionForeground': 'rgba(51,51,51,0.7)',
+        '--vscode-input-background': '#ffffff',
+        '--vscode-input-foreground': '#333333',
+        '--vscode-input-border': '#cecece',
+        '--vscode-dropdown-background': '#ffffff',
+        '--vscode-dropdown-foreground': '#333333',
+        '--vscode-dropdown-border': '#cecece',
+        '--vscode-menu-background': '#f3f3f3',
+        '--vscode-menu-foreground': '#333333',
+        '--vscode-menu-border': '#c8c8c8',
+        '--vscode-menu-selectionBackground': '#e8e8e8',
+        '--vscode-menu-selectionForeground': '#333333',
+        '--vscode-badge-background': '#c4c4c4',
+        '--vscode-badge-foreground': '#333333',
+        '--vscode-textCodeBlock-background': '#f0f0f0',
+    };
+    let darkVars = {};
+    const btn = document.getElementById('theme-toggle');
+    let isDark = true;
+    btn.addEventListener('click', () => {
+        const root = document.documentElement;
+        if (isDark) {
+            // Save current dark values
+            for (const k of Object.keys(LIGHT_OVERRIDES)) {
+                darkVars[k] = root.style.getPropertyValue(k) || getComputedStyle(root).getPropertyValue(k).trim();
+            }
+            for (const [k, v] of Object.entries(LIGHT_OVERRIDES)) { root.style.setProperty(k, v); }
+            document.body.className = 'vscode-light';
+            btn.textContent = '🌙 Dark';
+        } else {
+            for (const [k, v] of Object.entries(darkVars)) { root.style.setProperty(k, v); }
+            document.body.className = 'vscode-dark';
+            btn.textContent = '☀ Light';
+        }
+        isDark = !isDark;
+    });
+    </script>
+</body>
+</html>

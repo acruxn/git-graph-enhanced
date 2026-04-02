@@ -6,6 +6,13 @@ target/
 
 # Build output
 dist/
+webview/dev-data.js
+webview/dev-data.js.map
+webview/webview.js
+
+# Dev/test artifacts
+.playwright-mcp/
+screenshot-*.png
 
 # VS Code extension package
 *.vsix
