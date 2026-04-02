@@ -76,7 +76,7 @@
         },
         "gitGraphEnhanced.maxDepthOfRepoSearch": {
           "type": "number",
-          "default": 1,
+          "default": 2,
           "description": "Maximum folder depth to search for git repositories"
         },
         "gitGraphEnhanced.logLevel": {

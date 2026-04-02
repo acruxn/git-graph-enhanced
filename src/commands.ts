@@ -10,21 +10,20 @@ async function discoverRepoPaths(): Promise<string[]> {
     if (!folders || folders.length === 0) { return []; }
     const paths: string[] = [];
     const seen = new Set<string>();
-    const maxDepth = getConfig('maxDepthOfRepoSearch', 1);
+    const maxDepth = getConfig('maxDepthOfRepoSearch', 2);
 
     async function scan(dirPath: string, depth: number): Promise<void> {
         if (seen.has(dirPath)) { return; }
+        seen.add(dirPath);
         try {
             await fs.promises.stat(path.join(dirPath, '.git'));
             paths.push(dirPath);
-            seen.add(dirPath);
-            return;
         } catch { /* no .git here */ }
         if (depth <= 0) { return; }
         try {
             const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
             for (const entry of entries) {
-                if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules' && entry.name !== 'target') {
                     await scan(path.join(dirPath, entry.name), depth - 1);
                 }
             }
