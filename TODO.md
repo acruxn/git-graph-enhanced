@@ -46,6 +46,35 @@
 - [x] Extension settings schema (contributes.configuration)
 - [x] README with features, setup, settings, keybindings
 
+## v0.1.0 Marketplace Release — Blockers
+
+These must ship before publishing to the VS Code marketplace.
+
+Previous round completed: toolbar header, hover popover, theme system, commit detail polish (GPG badge + autolinks + combined labels in detail panel).
+
+### Alpha: Basic git write operations
+- [ ] `src/git-operations.ts` — spawn git commands (checkout, branch, tag) from extension host
+- [ ] Context menu: Checkout Branch, Checkout Commit (detached), Create Branch, Create Tag
+- [ ] Message handlers in `webview-provider.ts` for checkout/createBranch/createTag
+- [ ] Confirmation dialogs (branch name input, tag name input)
+- [ ] Auto-refresh graph after each write operation
+
+### Bravo: Toolbar search + branch state indicator
+- [ ] Move search input into toolbar center section (HTML + CSS + wiring)
+- [ ] Add `getBranchState` RPC to Rust backend (ahead/behind counts vs upstream)
+- [ ] Display current branch name + ahead/behind pills in toolbar left section
+- [ ] Wire branch state into webview on init + refresh
+
+### Charlie: Graph visual polish
+- [ ] Extend merge commit muting to SHA + date columns (currently only message + author)
+- [ ] Combined branch/remote labels in graph Canvas badges (detail panel already has this)
+- [ ] GPG signature badge in graph row Canvas (detail panel already has this)
+
+### Delta: Fetch button + auto-refresh
+- [ ] Fetch button in toolbar (executes `git fetch --prune` via extension host)
+- [ ] "Last fetched X ago" tooltip on fetch button
+- [ ] Auto-refresh graph after any git write operation completes (checkout, branch, tag, fetch)
+
 ## Phase 4 deferred (not blocking v0.1.0)
 
 - [ ] Performance profiling on large repos (linux kernel, chromium)
@@ -56,7 +85,33 @@
 
 ---
 
-## Feature Backlog
+## v0.2.0 Backlog
+
+Post-marketplace-launch, roughly prioritized by impact/effort.
+
+### High Priority
+- [ ] Canvas minimap — condensed timeline with commit density bars + markers (#minimap)
+- [ ] Structured search operators — `@:author`, `#:sha`, `file:path`, `after:`, `before:` (#search)
+- [ ] Full git write operations — merge, rebase, cherry-pick, revert, reset (#write-ops)
+- [ ] Stash management — apply, pop, drop, create from graph (#stash)
+
+### Medium Priority
+- [ ] Sidebar icon bar — branches/tags/stashes counts with codicon icons (#sidebar)
+- [ ] Column resize — draggable dividers in Canvas header (#column-resize)
+- [ ] Worktree support — create/manage/remove from graph (#worktrees)
+- [ ] Gravatar avatars — fetch and cache author avatars (#avatars)
+- [ ] Autolinks — regex-based issue/PR linking in commit messages (#autolinks)
+- [ ] Search autocomplete + history (#search-autocomplete)
+- [ ] Arrow key branch-tracking navigation — Ctrl+Arrow follows branch (#keyboard)
+
+### Lower Priority
+- [ ] Pull/Push buttons with ahead/behind counts (#pull-push)
+- [ ] Author filter covering all reachable authors (#author-filter)
+- [ ] Configurable dialog defaults for merge/cherry-pick options (#dialog-defaults)
+- [ ] Scroll position restore on tab switch (#scroll-restore)
+- [ ] Auto-load more commits on scroll (#auto-load)
+
+### Feature Backlog (original)
 
 Post-v1.0, roughly prioritized within each category.
 
