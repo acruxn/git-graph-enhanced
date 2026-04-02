@@ -24,6 +24,9 @@ Thumbs.db
 # Misc docs (personal research notes)
 docs/misc/
 
+# Archived originals (pre-rewrite copies)
+docs/archive/clean-room-originals/
+
 # Test fixtures (generated)
 tests/fixtures/
 image*.png
