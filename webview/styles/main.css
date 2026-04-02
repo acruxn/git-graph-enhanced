@@ -520,3 +520,22 @@ details[open] > .file-tree-folder::before {
 .file-stat-add { color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043); }
 .file-stat-del { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
 
+
+/* === Toolbar center / inline search === */
+.toolbar__center { flex: 1; display: flex; justify-content: center; min-width: 0; }
+.search-bar--inline { border-bottom: none; padding: 0; background: transparent; max-width: 600px; width: 100%; }
+.search-bar--inline .search-input { font-size: 12px; padding: 3px 8px; }
+.search-bar--inline .search-type { padding: 3px 4px; font-size: 12px; }
+
+/* === Branch state === */
+.branch-state { display: flex; align-items: center; gap: 4px; font-size: 12px; margin-left: 8px; }
+.branch-name { opacity: 0.8; }
+.branch-pill { font-size: 11px; padding: 1px 5px; border-radius: 8px; font-weight: 600; }
+.branch-pill.ahead { background: color-mix(in srgb, #4caf50 25%, transparent); color: #4caf50; }
+.branch-pill.behind { background: color-mix(in srgb, #ff9800 25%, transparent); color: #ff9800; }
+
+/* === Context menu separator === */
+.context-menu-separator { border-top: 1px solid var(--vscode-panel-border); margin: 4px 0; }
+
+/* === Fetch button disabled === */
+#fetch-btn:disabled { opacity: 0.5; cursor: default; }

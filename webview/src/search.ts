@@ -90,8 +90,14 @@ export class SearchBar {
         }
         this.container.appendChild(this.branchGroupSelect);
 
-        const graphContainer = document.getElementById('graph-container');
-        graphContainer?.parentElement?.insertBefore(this.container, graphContainer);
+        const toolbarCenter = document.getElementById('toolbar-center');
+        if (toolbarCenter) {
+            this.container.classList.add('search-bar--inline');
+            toolbarCenter.appendChild(this.container);
+        } else {
+            const graphContainer = document.getElementById('graph-container');
+            graphContainer?.parentElement?.insertBefore(this.container, graphContainer);
+        }
 
         this.input.addEventListener('input', () => {
             clearTimeout(this.debounceTimer);

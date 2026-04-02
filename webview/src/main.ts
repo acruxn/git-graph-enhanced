@@ -90,6 +90,7 @@ const filterToggles = document.querySelectorAll<HTMLButtonElement>('.filter-togg
 
 repoPicker.addEventListener('click', () => messageHandler.send('requestRepoPicker'));
 settingsBtn.addEventListener('click', () => messageHandler.send('openSettings'));
+document.getElementById('fetch-btn')?.addEventListener('click', () => messageHandler.send('fetch'));
 
 for (const btn of filterToggles) {
     btn.addEventListener('click', () => {
@@ -102,6 +103,28 @@ for (const btn of filterToggles) {
 window.addEventListener('message', (e: MessageEvent<{ type: string; payload?: unknown }>) => {
     if (e.data.type === 'themeChanged') {
         theme.refresh();
+    }
+    if (e.data.type === 'fetchStarted') {
+        const btn = document.getElementById('fetch-btn') as HTMLButtonElement;
+        if (btn) { btn.disabled = true; btn.textContent = '↻ Fetching...'; }
+    }
+    if (e.data.type === 'fetchCompleted') {
+        const btn = document.getElementById('fetch-btn') as HTMLButtonElement;
+        if (btn) {
+            btn.disabled = false; btn.textContent = '↻ Fetch';
+            const p = e.data.payload as { lastFetched?: number };
+            if (p?.lastFetched) btn.title = `Last fetched: ${new Date(p.lastFetched).toLocaleTimeString()}`;
+        }
+    }
+    if (e.data.type === 'updateBranchState') {
+        const s = e.data.payload as { head?: string; ahead?: number; behind?: number };
+        const el = document.getElementById('branch-state');
+        if (el && s.head) {
+            let html = `<span class="branch-name">${s.head.replace(/</g, '&lt;')}</span>`;
+            if (s.ahead && s.ahead > 0) html += `<span class="branch-pill ahead">↑${s.ahead}</span>`;
+            if (s.behind && s.behind > 0) html += `<span class="branch-pill behind">↓${s.behind}</span>`;
+            el.innerHTML = html;
+        }
     }
     messageHandler.onMessage(e.data);
 });
