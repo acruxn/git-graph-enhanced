@@ -82,12 +82,89 @@ function getAuthorColor(name: string): string {
     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function relativeDate(ts: number): string {
+    const s = Math.floor((Date.now() / 1000) - ts);
+    if (s < 60) { return 'just now'; }
+    if (s < 3600) { return `${Math.floor(s / 60)}m ago`; }
+    if (s < 86400) { return `${Math.floor(s / 3600)}h ago`; }
+    if (s < 2592000) { return `${Math.floor(s / 86400)}d ago`; }
+    return new Date(ts * 1000).toLocaleDateString();
+}
+
+class CommitPopover {
+    private readonly el: HTMLDivElement;
+    private showTimer: ReturnType<typeof setTimeout> | null = null;
+    private hideTimer: ReturnType<typeof setTimeout> | null = null;
+    private currentSha: string | null = null;
+    private isVisible = false;
+
+    constructor() {
+        this.el = document.createElement('div');
+        this.el.className = 'commit-popover';
+        document.body.appendChild(this.el);
+        this.el.addEventListener('mouseenter', () => { if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; } });
+        this.el.addEventListener('mouseleave', () => this.hide());
+    }
+
+    show(sha: string, x: number, y: number, commit: Commit, branches?: Branch[], tags?: Tag[]): void {
+        if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
+        if (sha === this.currentSha && this.isVisible) { return; }
+        this.currentSha = sha;
+        const delay = this.isVisible ? 0 : 500;
+        if (this.showTimer) { clearTimeout(this.showTimer); }
+        this.showTimer = setTimeout(() => {
+            this.showTimer = null;
+            let html = `<div class="popover-sha">${escapeHtml(commit.shortId)}</div>`
+                + `<div class="popover-message">${escapeHtml(commit.message.split('\n')[0])}</div>`
+                + `<div class="popover-meta">${escapeHtml(commit.author.name)} · ${relativeDate(commit.timestamp)}</div>`
+                + `<div class="popover-meta">${commit.parentIds.length} parent(s)</div>`;
+            if (branches?.length || tags?.length) {
+                const badges = [
+                    ...(branches ?? []).map(b => `<span class="popover-ref-branch">${escapeHtml(b.name)}</span>`),
+                    ...(tags ?? []).map(t => `<span class="popover-ref-tag">${escapeHtml(t.name)}</span>`),
+                ];
+                html += `<div class="popover-refs">${badges.join('')}</div>`;
+            }
+            this.el.innerHTML = html;
+            this.el.style.display = 'block';
+            const left = Math.max(0, Math.min(x + 12, window.innerWidth - this.el.offsetWidth - 8));
+            let top = y + 16;
+            if (top + this.el.offsetHeight > window.innerHeight) { top = y - this.el.offsetHeight - 8; }
+            this.el.style.left = `${left}px`;
+            this.el.style.top = `${top}px`;
+            this.isVisible = true;
+        }, delay);
+    }
+
+    hide(): void {
+        if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
+        this.hideTimer = setTimeout(() => {
+            this.hideTimer = null;
+            this.el.style.display = 'none';
+            this.isVisible = false;
+            this.currentSha = null;
+        }, 100);
+    }
+
+    dismiss(): void {
+        if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
+        if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
+        this.el.style.display = 'none';
+        this.isVisible = false;
+        this.currentSha = null;
+    }
+}
+
 export class GraphRenderer {
     private readonly ctx: CanvasRenderingContext2D;
     private readonly container: HTMLElement;
     private readonly theme: ThemeManager;
     private readonly a11yRoot: HTMLElement;
-    private readonly tooltip: HTMLElement;
+    private readonly popover: CommitPopover;
     private readonly stateBanner: HTMLElement;
     private send: SendFn = () => {};
     private onFocusSearch: (() => void) | null = null;
@@ -109,7 +186,6 @@ export class GraphRenderer {
     private filteredIndices: Set<number> | null = null;
     private rafId: number | null = null;
     private scrollRafId: number | null = null;
-    private tooltipHideTimer: ReturnType<typeof setTimeout> | undefined;
     private activeContextMenu: HTMLElement | null = null;
     private spacer: HTMLElement | null = null;
     private expandedHeight = 0;
@@ -130,11 +206,8 @@ export class GraphRenderer {
         this.a11yRoot.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)';
         this.container.appendChild(this.a11yRoot);
 
-        // Tooltip
-        this.tooltip = document.createElement('div');
-        this.tooltip.id = 'tooltip';
-        this.tooltip.className = 'graph-tooltip';
-        document.body.appendChild(this.tooltip);
+        // Commit popover
+        this.popover = new CommitPopover();
 
         // State banner (merge/rebase/cherry-pick in progress)
         this.stateBanner = document.createElement('div');
@@ -145,7 +218,7 @@ export class GraphRenderer {
         this.container.addEventListener('scroll', () => this.onScroll());
         canvas.addEventListener('click', (e) => this.onClick(e));
         canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        canvas.addEventListener('mouseleave', () => this.hideTooltip());
+        canvas.addEventListener('mouseleave', () => this.popover.hide());
         canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
         canvas.addEventListener('contextmenu', (e) => this.onContextMenu(e));
         this.container.setAttribute('tabindex', '0');
@@ -469,7 +542,13 @@ export class GraphRenderer {
         if (idx === this.hoverIndex) { return; }
         this.hoverIndex = (idx >= 0 && idx < this.commits.length) ? idx : -1;
         this.scheduleRedraw();
-        this.updateTooltip(e, this.hoverIndex);
+        if (this.hoverIndex >= 0 && this.hoverIndex < this.commits.length) {
+            const c = this.commits[this.hoverIndex];
+            this.popover.show(c.id, e.clientX, e.clientY, c,
+                this.branchMap.get(c.id), this.tagMap.get(c.id));
+        } else {
+            this.popover.hide();
+        }
     }
 
     private onMouseDown(e: MouseEvent): void {
@@ -500,38 +579,6 @@ export class GraphRenderer {
                 return;
             }
         }
-    }
-
-    // --- Tooltip ---
-
-    private updateTooltip(e: MouseEvent, idx: number): void {
-        clearTimeout(this.tooltipHideTimer);
-        if (idx < 0 || idx >= this.commits.length) {
-            this.hideTooltip();
-            return;
-        }
-        const commit = this.commits[idx];
-        const branches = this.branchMap.get(commit.id);
-        const tags = this.tagMap.get(commit.id);
-        if (!branches && !tags) {
-            this.hideTooltip();
-            return;
-        }
-        const parts: string[] = [];
-        if (branches) { parts.push(...branches.map(b => (b.isHead ? '\u2022 ' : '') + b.name)); }
-        if (tags) { parts.push(...tags.map(t => '\ud83c\udff7 ' + t.name)); }
-        this.tooltip.textContent = parts.join('\n');
-        this.tooltip.style.whiteSpace = 'pre';
-        this.tooltip.style.display = 'block';
-        this.tooltip.style.left = `${e.clientX + 12}px`;
-        this.tooltip.style.top = `${e.clientY + 12}px`;
-    }
-
-    private hideTooltip(): void {
-        clearTimeout(this.tooltipHideTimer);
-        this.tooltipHideTimer = setTimeout(() => {
-            this.tooltip.style.display = 'none';
-        }, 150);
     }
 
     // --- Context menu ---
@@ -645,6 +692,7 @@ export class GraphRenderer {
                 if (idx >= 0) { this.send('requestCommitDetail', { commitId: this.commits[idx].id }); }
                 return;
             case 'Escape':
+                this.popover.dismiss();
                 this.closeContextMenu();
                 this.selectedIndex = -1;
                 this.expandedHeight = 0;
