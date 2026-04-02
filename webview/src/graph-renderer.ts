@@ -66,6 +66,7 @@ const BADGE_GAP = 4;
 const BADGE_RADIUS = 3;
 const HEADER_HEIGHT = 20;
 const AVATAR_RADIUS = 8;
+const MIN_COL_WIDTH = 40;
 
 const AVATAR_COLORS = ['#e06c75', '#61afef', '#98c379', '#d19a66', '#c678dd', '#56b6c2', '#e5c07b', '#be5046'];
 
@@ -415,6 +416,15 @@ export class GraphRenderer {
         }
 
         this.compareIndex = -1;
+        if (idx === this.selectedIndex) {
+            this.selectedIndex = -1;
+            this.expandedHeight = 0;
+            this.highlightedBranch.clear();
+            this.onCloseDetail?.();
+            this.resize();
+            this.scheduleRedraw();
+            return;
+        }
         this.selectedIndex = idx;
         this.expandedHeight = 0;
         this.updateBranchHighlight();
@@ -426,10 +436,17 @@ export class GraphRenderer {
         if (this.dragCol) {
             const delta = e.clientX - this.dragStartX;
             const col = this.dragCol as keyof typeof this.columnWidths;
-            // For author/date, dragging left increases width
-            const newWidth = col === 'author' || col === 'date'
-                ? Math.max(40, this.dragStartWidth - delta)
-                : Math.max(40, this.dragStartWidth + delta);
+            const dpr = window.devicePixelRatio || 1;
+            const totalWidth = this.ctx.canvas.width / dpr;
+            let newWidth = col === 'author' || col === 'date'
+                ? this.dragStartWidth - delta
+                : this.dragStartWidth + delta;
+            newWidth = Math.max(MIN_COL_WIDTH, newWidth);
+            // Check message column doesn't collapse below MIN_COL_WIDTH
+            const shaW = col === 'sha' ? newWidth : this.columnWidths.sha;
+            const authW = this.config.showAuthor ? (col === 'author' ? newWidth : this.columnWidths.author) : 0;
+            const dateW = this.config.showDate ? (col === 'date' ? newWidth : this.columnWidths.date) : 0;
+            if (totalWidth - this.textLeft - shaW - authW - dateW < MIN_COL_WIDTH) { return; }
             this.columnWidths[col] = newWidth;
             this.scheduleRedraw();
             return;
@@ -671,6 +688,12 @@ export class GraphRenderer {
         }
     }
 
+    scrollToIndex(idx: number): void {
+        if (idx >= 0 && idx < this.commits.length) {
+            this.scrollIntoView(idx);
+        }
+    }
+
     // --- Branch highlight ---
 
     private updateBranchHighlight(): void {
@@ -840,57 +863,70 @@ export class GraphRenderer {
             ctx.globalAlpha = 1;
 
             // Badges + text
-            let x = textLeft;
-            x = this.drawBadges(ctx, commit.id, x, y, colors);
-
             const { sha: shaCol, message: messageCol, author: authorCol, date: dateCol } = this.getColumnPositions(width);
+            const rowTop = y - ROW_HEIGHT / 2;
 
-            // Short SHA
+            // Short SHA — clipped
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(shaCol, rowTop, messageCol - shaCol, ROW_HEIGHT);
+            ctx.clip();
             ctx.fillStyle = fg;
             ctx.globalAlpha = 0.7;
             ctx.font = '12px Menlo, Consolas, monospace';
             ctx.fillText(commit.shortId, shaCol, y + 4);
+            ctx.restore();
 
-            // Message (truncate with ellipsis if overlapping author/date column)
+            // Message + badges — clipped
+            const msgRight = this.config.showAuthor ? authorCol : this.config.showDate ? dateCol : width;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(messageCol, rowTop, msgRight - messageCol, ROW_HEIGHT);
+            ctx.clip();
             ctx.globalAlpha = isMerge ? 0.5 : 1;
             ctx.font = '13px system-ui, -apple-system, sans-serif';
             const displayMsg = replaceEmoji(commit.message);
-            const msgMaxWidth = (this.config.showAuthor ? authorCol : this.config.showDate ? dateCol : width) - messageCol - 10;
-            if (msgMaxWidth > 0) {
-                let msg = displayMsg;
-                if (ctx.measureText(msg).width > msgMaxWidth) {
-                    while (msg.length > 0 && ctx.measureText(msg + '…').width > msgMaxWidth) { msg = msg.slice(0, -1); }
-                    msg += '…';
-                }
-                ctx.fillText(msg, messageCol, y + 4);
+            ctx.fillStyle = fg;
+            ctx.fillText(displayMsg, messageCol, y + 4);
+            const msgEndX = messageCol + ctx.measureText(displayMsg).width + 6;
+            if (msgEndX < msgRight) {
+                this.drawBadges(ctx, commit.id, msgEndX, y, colors);
             }
+            ctx.restore();
 
-            // Author
+            // Author — clipped
             if (this.config.showAuthor) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(authorCol, rowTop, dateCol - authorCol, ROW_HEIGHT);
+                ctx.clip();
                 ctx.globalAlpha = isMerge ? 0.4 : 0.7;
-                // Avatar circle
                 const avatarColor = getAuthorColor(commit.author.name);
                 ctx.fillStyle = avatarColor;
                 ctx.beginPath();
                 ctx.arc(authorCol + AVATAR_RADIUS, y, AVATAR_RADIUS, 0, Math.PI * 2);
                 ctx.fill();
-                // Initials
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
                 const initials = getAuthorInitials(commit.author.name);
                 const tw = ctx.measureText(initials).width;
                 ctx.fillText(initials, authorCol + AVATAR_RADIUS - tw / 2, y + 3);
-                // Name
                 ctx.fillStyle = fg;
                 ctx.font = '12px system-ui, -apple-system, sans-serif';
                 ctx.fillText(commit.author.name, authorCol + AVATAR_RADIUS * 2 + 6, y + 4);
+                ctx.restore();
             }
 
-            // Date
+            // Date — clipped
             if (this.config.showDate) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(dateCol, rowTop, width - dateCol, ROW_HEIGHT);
+                ctx.clip();
                 ctx.globalAlpha = 0.7;
                 ctx.font = '12px system-ui, -apple-system, sans-serif';
                 ctx.fillText(this.formatDate(commit.timestamp, width - dateCol), dateCol, y + 4);
+                ctx.restore();
             }
             ctx.globalAlpha = 1;
         }
@@ -901,21 +937,14 @@ export class GraphRenderer {
 
     private formatDate(timestamp: number, availableWidth: number): string {
         const d = new Date(timestamp * 1000);
-        const diffMs = Date.now() - d.getTime();
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffDays === 0) {
-            const hours = Math.floor(diffMs / 3600000);
-            if (hours === 0) { return `${Math.max(1, Math.floor(diffMs / 60000))}m ago`; }
-            return `${hours}h ago`;
+        if (availableWidth > 180) {
+            const tz = d.getTimezoneOffset();
+            const sign = tz <= 0 ? '+' : '-';
+            const ah = String(Math.floor(Math.abs(tz) / 60)).padStart(2, '0');
+            const am = String(Math.abs(tz) % 60).padStart(2, '0');
+            return d.toLocaleString('sv-SE').slice(0, 16) + ` ${sign}${ah}:${am}`;
         }
-        if (diffDays === 1) { return 'Yesterday'; }
-        if (diffDays < 7) { return `${diffDays}d ago`; }
-
-        if (availableWidth > 200) {
-            return d.toLocaleString('sv-SE');
-        }
-        if (availableWidth > 140) {
+        if (availableWidth > 120) {
             return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         }
         return d.toLocaleDateString();
