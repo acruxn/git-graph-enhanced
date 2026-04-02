@@ -16,6 +16,8 @@ export class GraphPanel implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext;
     private readonly disposables: vscode.Disposable[] = [];
     private readonly repoPath: string;
+    private sortOrder: 'date' | 'topo' = 'date';
+    private sortDirection: 'asc' | 'desc' = 'desc';
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -134,6 +136,8 @@ export class GraphPanel implements vscode.Disposable {
                         case 'requestCommits': {
                             const p = msg.payload as Record<string, unknown> | undefined;
                             if (p?.order || p?.sortDirection) {
+                                if (p?.order) { this.sortOrder = p.order === 'topo' ? 'topo' : 'date'; }
+                                if (p?.sortDirection) { this.sortDirection = p.sortDirection === 'asc' ? 'asc' : 'desc'; }
                                 await this.handleReady();
                             } else {
                                 await this.handleRequestCommits(msg.payload);
@@ -172,8 +176,17 @@ export class GraphPanel implements vscode.Disposable {
                             const p = msg.payload as { filePath: string; commitId?: string };
                             const repoPath = this.getRepoPath();
                             if (p.commitId) {
-                                const uri = buildDiffUri(p.filePath, p.commitId, repoPath);
-                                await vscode.commands.executeCommand('vscode.open', uri);
+                                const detail = await this.backend.request('getCommitDetail', { repoPath, commitId: p.commitId }) as { commit: { parentIds?: string[] } };
+                                const parentId = detail.commit.parentIds?.[0];
+                                if (parentId) {
+                                    const left = buildDiffUri(p.filePath, parentId, repoPath);
+                                    const right = buildDiffUri(p.filePath, p.commitId, repoPath);
+                                    await vscode.commands.executeCommand('vscode.diff', left, right,
+                                        `${p.filePath} (${p.commitId.slice(0, 7)})`);
+                                } else {
+                                    const uri = buildDiffUri(p.filePath, p.commitId, repoPath);
+                                    await vscode.commands.executeCommand('vscode.open', uri);
+                                }
                             } else {
                                 const fileUri = vscode.Uri.file(path.join(repoPath, p.filePath));
                                 await vscode.commands.executeCommand('vscode.open', fileUri);
@@ -255,6 +268,13 @@ export class GraphPanel implements vscode.Disposable {
                             vscode.window.createTerminal({ name: 'Git Graph', cwd: repoPath }).show();
                             break;
                         }
+                        case 'requestFileContent': {
+                            const p = msg.payload as { filePath: string; commitId: string };
+                            const repoPath = this.getRepoPath();
+                            const result = await this.backend.request('getFileContent', { repoPath, commitId: p.commitId, filePath: p.filePath });
+                            this.postMessage('fileContent', { ...(result as object), filePath: p.filePath, commitId: p.commitId });
+                            break;
+                        }
                         case 'createPr': {
                             const { branchName } = msg.payload as { branchName: string };
                             const repoPath = this.getRepoPath();
@@ -298,7 +318,7 @@ export class GraphPanel implements vscode.Disposable {
         const showReflog = getConfig('showReflog', false);
 
         const [commitsResult, branchesResult, tagsResult, stashesResult, stateResult] = await Promise.all([
-            this.backend.request('getCommits', { repoPath, maxCount }),
+            this.backend.request('getCommits', { repoPath, maxCount, sort: this.sortOrder }),
             this.backend.request('getBranches', { repoPath }),
             this.backend.request('getTags', { repoPath }),
             this.backend.request('getStashes', { repoPath }),
@@ -322,6 +342,10 @@ export class GraphPanel implements vscode.Disposable {
         const branches = (branchesResult as { branches: Array<{ name: string; commitId: string; isHead: boolean }> }).branches;
         const mainBranch = branches.find(b => b.name === 'main' || b.name === 'master');
         const pinnedCommitIds = mainBranch ? [{ id: mainBranch.commitId, column: 0 }] : [];
+
+        if (this.sortDirection === 'asc') {
+            commits.commits.reverse();
+        }
 
         const graphResult = await this.backend.request('getGraph', {
             commits: commits.commits.map(c => ({ id: c.id, parentIds: c.parentIds })),
