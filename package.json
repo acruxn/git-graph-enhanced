@@ -4,7 +4,7 @@
   "description": "High-performance git history visualization powered by Rust",
   "version": "0.1.0",
   "publisher": "git-graph-enhanced",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "https://github.com/acruxn/git-graph-enhanced.git"
