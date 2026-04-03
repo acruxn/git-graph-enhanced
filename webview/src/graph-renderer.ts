@@ -613,7 +613,35 @@ export class GraphRenderer {
             menu.appendChild(item);
         }
 
+        const sep = document.createElement('div');
+        sep.className = 'context-menu-separator';
+        menu.appendChild(sep);
+
+        const writeItems: [string, () => void][] = [
+            ['Create Branch...', () => this.send('createBranch', { commitId: commit.id })],
+            ['Create Tag...', () => this.send('createTag', { commitId: commit.id })],
+        ];
+
         const branches = this.branchMap.get(commit.id);
+        if (branches) {
+            for (const b of branches) {
+                if (!b.isRemote && !b.isHead) {
+                    writeItems.unshift(['Checkout: ' + b.name, () => this.send('checkout', { ref: b.name })]);
+                }
+            }
+        }
+        if (!branches?.some(b => b.isHead)) {
+            writeItems.push(['Checkout Commit (detached)', () => this.send('checkout', { ref: commit.id, detached: true })]);
+        }
+
+        for (const [label, action] of writeItems) {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.textContent = label;
+            item.addEventListener('click', () => { action(); this.closeContextMenu(); });
+            menu.appendChild(item);
+        }
+
         if (branches) {
             for (const b of branches) {
                 if (!b.isRemote && !b.isHead) {

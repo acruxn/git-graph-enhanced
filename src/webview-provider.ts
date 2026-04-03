@@ -450,6 +450,11 @@ export class GraphPanel implements vscode.Disposable {
             ...(stateResult as object),
         });
 
+        try {
+            const branchState = await this.backend.request('getBranchState', { repoPath });
+            this.postMessage('updateBranchState', branchState);
+        } catch { /* best-effort — don't fail graph load */ }
+
         this.postMessage('updateConfig', {
             showDate: getConfig('showDateColumn', true),
             showAuthor: getConfig('showAuthorColumn', true),
